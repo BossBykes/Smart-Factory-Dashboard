@@ -98,6 +98,35 @@ export const AlertPanel: React.FC = () => {
         </div>
       </div>
 
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <h3 className="text-sm font-medium text-gray-400 mb-2">Total Alerts</h3>
+          <p className="text-3xl font-bold text-white">{alerts.length}</p>
+        </div>
+        
+        <div className="bg-gray-800 rounded-lg p-6 border border-red-500/30">
+          <h3 className="text-sm font-medium text-gray-400 mb-2">Critical</h3>
+          <p className="text-3xl font-bold text-red-400">
+            {alerts.filter(a => a.severity === 'critical').length}
+          </p>
+        </div>
+        
+        <div className="bg-gray-800 rounded-lg p-6 border border-yellow-500/30">
+          <h3 className="text-sm font-medium text-gray-400 mb-2">Unacknowledged</h3>
+          <p className="text-3xl font-bold text-yellow-400">
+            {alerts.filter(a => !a.acknowledged).length}
+          </p>
+        </div>
+        
+        <div className="bg-gray-800 rounded-lg p-6 border border-green-500/30">
+          <h3 className="text-sm font-medium text-gray-400 mb-2">Resolved Today</h3>
+          <p className="text-3xl font-bold text-green-400">
+            {alerts.filter(a => a.acknowledged).length}
+          </p>
+        </div>
+      </div>
+
       {/* Alerts List */}
       <div className="space-y-4">
         {filteredAlerts.length === 0 ? (
