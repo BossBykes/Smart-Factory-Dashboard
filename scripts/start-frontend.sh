@@ -1,4 +1,4 @@
 #!/bin/bash
 echo "🌐 Starting Smart Factory Frontend..."
 cd ~/smart-factory-dashboard/frontend
-npm start
+npm run dev

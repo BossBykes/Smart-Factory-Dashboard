@@ -8,7 +8,7 @@ gnome-terminal --tab --title="Backend" -- bash -c "cd ~/smart-factory-dashboard/
 sleep 3
 
 # Start frontend in new tab
-gnome-terminal --tab --title="Frontend" -- bash -c "cd ~/smart-factory-dashboard/frontend && npm start; exec bash"
+gnome-terminal --tab --title="Frontend" -- bash -c "cd ~/smart-factory-dashboard/frontend && npm run dev; exec bash"
 
 echo "✅ Smart Factory Dashboard started!"
 echo "📱 Frontend: http://localhost:3000"

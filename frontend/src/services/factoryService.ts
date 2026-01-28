@@ -15,10 +15,73 @@ class FactoryService {
     this.initializeWebSocket();
   }
 
+  private toDate(value: any): Date | undefined {
+    if (!value) return undefined;
+    if (value instanceof Date) return value;
+    const parsed = new Date(value);
+    return isNaN(parsed.getTime()) ? undefined : parsed;
+  }
+
+  private normalizeAlert(alert: any): Alert {
+    const timestamp = this.toDate(alert.timestamp) || new Date();
+    const createdAt = this.toDate(alert.createdAt);
+    return {
+      ...alert,
+      timestamp,
+      ...(createdAt ? { createdAt } : {})
+    } as Alert;
+  }
+
+  private normalizeMaintenanceTask(task: any): MaintenanceTask {
+    const scheduledDate = this.toDate(task.scheduledDate);
+    const dueDate = this.toDate(task.dueDate);
+    const date = this.toDate(task.date);
+    return {
+      ...task,
+      ...(scheduledDate ? { scheduledDate } : {}),
+      ...(dueDate ? { dueDate } : {}),
+      ...(date ? { date } : {})
+    } as MaintenanceTask;
+  }
+
+  private normalizeJob(job: any): ProductionJob {
+    const startTime = this.toDate(job.startTime);
+    const endTime = this.toDate(job.endTime);
+    const estimatedEndTime = this.toDate(job.estimatedEndTime);
+    const scheduledStart = this.toDate(job.scheduledStart);
+    const scheduledEnd = this.toDate(job.scheduledEnd);
+    return {
+      ...job,
+      ...(startTime ? { startTime } : {}),
+      ...(endTime ? { endTime } : {}),
+      ...(estimatedEndTime ? { estimatedEndTime } : {}),
+      ...(scheduledStart ? { scheduledStart } : {}),
+      ...(scheduledEnd ? { scheduledEnd } : {})
+    } as ProductionJob;
+  }
+
+  private normalizeMachine(machine: any): Machine {
+    const lastMaintenance = this.toDate(machine.lastMaintenance);
+    const nextMaintenance = this.toDate(machine.nextMaintenance);
+    const lastUpdated = this.toDate(machine.lastUpdated);
+    return {
+      ...machine,
+      ...(lastMaintenance ? { lastMaintenance } : {}),
+      ...(nextMaintenance ? { nextMaintenance } : {}),
+      ...(lastUpdated ? { lastUpdated } : {})
+    } as Machine;
+  }
+
   private initializeWebSocket() {
     try {
+      // Close any existing socket before creating a new one
+      if (this.websocket) {
+        try { this.websocket.close(); } catch {}
+        this.websocket = null;
+      }
+
       // Connect to the Node.js WebSocket server
-      const wsUrl = process.env.NODE_ENV === 'production' 
+      const wsUrl = import.meta.env.PROD
         ? `ws://${window.location.hostname}:3000/dashboard`
         : 'ws://localhost:3000/dashboard';
         
@@ -86,24 +149,26 @@ class FactoryService {
     
     switch (type) {
       case 'initial_data':
-        this.machines = data.machines || [];
-        this.alerts = data.alerts || [];
-        this.maintenanceTasks = data.maintenanceTasks || [];
-        this.jobs = data.jobs || [];
+        this.machines = (data.machines || []).map((m: any) => this.normalizeMachine(m));
+        this.alerts = (data.alerts || []).map((a: any) => this.normalizeAlert(a));
+        this.maintenanceTasks = (data.maintenanceTasks || []).map((t: any) => this.normalizeMaintenanceTask(t));
+        this.jobs = (data.jobs || []).map((j: any) => this.normalizeJob(j));
         this.kpis = data.kpis || [];
         this.notifyListeners('data_update', { type: 'initial' });
         break;
         
       case 'machine_update':
-        this.updateMachine(data);
+        const normalized = this.normalizeMachine(data);
+        this.updateMachine(normalized);
         this.kpis = this.calculateKPIs();
-        this.notifyListeners('machine_update', data);
+        this.notifyListeners('machine_update', normalized);
         break;
         
-      case 'alerts_update':
-        this.alerts = data;
-        this.notifyListeners('alerts_update', data);
+      case 'alerts_update': {
+        this.alerts = (data || []).map((a: any) => this.normalizeAlert(a));
+        this.notifyListeners('alerts_update', this.alerts);
         break;
+      }
         
       case 'command_error':
         this.notifyListeners('command_error', data);
@@ -253,7 +318,11 @@ class FactoryService {
   }
 
   getMaintenanceTasks(): MaintenanceTask[] {
-    return this.maintenanceTasks.sort((a, b) => a.scheduledDate.getTime() - b.scheduledDate.getTime());
+    return this.maintenanceTasks.sort((a, b) => {
+      const ta = a.scheduledDate?.getTime?.() ?? 0;
+      const tb = b.scheduledDate?.getTime?.() ?? 0;
+      return ta - tb;
+    });
   }
 
   getKPIs(): KPI[] {
