@@ -13,9 +13,13 @@ export const ProductionSchedule: React.FC = () => {
     };
 
     updateJobs();
-    const interval = setInterval(updateJobs, 3000);
+    const handleDataUpdate = () => updateJobs();
 
-    return () => clearInterval(interval);
+    factoryService.addEventListener('data_update', handleDataUpdate);
+
+    return () => {
+      factoryService.removeEventListener('data_update', handleDataUpdate);
+    };
   }, []);
 
   const getStatusColor = (status: string) => {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   HomeIcon, 
   CogIcon, 
@@ -7,6 +7,7 @@ import {
   ClipboardDocumentListIcon,
   WrenchScrewdriverIcon 
 } from '@heroicons/react/24/outline';
+import { factoryService } from '../../services/factoryService';
 
 interface NavigationProps {
   currentView: string;
@@ -14,6 +15,45 @@ interface NavigationProps {
 }
 
 export const Navigation: React.FC<NavigationProps> = ({ currentView, onViewChange }) => {
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'error'>(
+    factoryService.getConnectionStatus()
+  );
+
+  useEffect(() => {
+    const handleConnectionUpdate = (data: any) => {
+      setConnectionStatus(data.status);
+    };
+
+    factoryService.addEventListener('connection', handleConnectionUpdate);
+    setConnectionStatus(factoryService.getConnectionStatus());
+
+    return () => {
+      factoryService.removeEventListener('connection', handleConnectionUpdate);
+    };
+  }, []);
+
+  const getStatusDot = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return 'bg-green-400';
+      case 'error':
+        return 'bg-red-400';
+      default:
+        return 'bg-yellow-400';
+    }
+  };
+
+  const getStatusLabel = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return 'Connected';
+      case 'error':
+        return 'Error';
+      default:
+        return 'Connecting...';
+    }
+  };
+
   const navItems = [
     { id: 'overview', name: 'Factory Overview', icon: HomeIcon },
     { id: 'machines', name: 'Machines', icon: CogIcon },
@@ -32,7 +72,12 @@ export const Navigation: React.FC<NavigationProps> = ({ currentView, onViewChang
               <h1 className="text-xl font-bold text-white">Smart Factory</h1>
             </div>
           </div>
-          <div className="flex space-x-1">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 px-3 py-1 rounded-full bg-gray-800 border border-gray-700">
+              <span className={`w-2 h-2 rounded-full ${getStatusDot()}`} />
+              <span className="text-xs text-gray-300">{getStatusLabel()}</span>
+            </div>
+            <div className="flex space-x-1">
             {navItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -50,6 +95,7 @@ export const Navigation: React.FC<NavigationProps> = ({ currentView, onViewChang
                 </button>
               );
             })}
+            </div>
           </div>
         </div>
       </div>

@@ -14,9 +14,16 @@ export const ProductionMetrics: React.FC = () => {
     };
 
     updateData();
-    const interval = setInterval(updateData, 3000);
+    const handleDataUpdate = () => updateData();
+    const handleMachineUpdate = () => updateData();
 
-    return () => clearInterval(interval);
+    factoryService.addEventListener('data_update', handleDataUpdate);
+    factoryService.addEventListener('machine_update', handleMachineUpdate);
+
+    return () => {
+      factoryService.removeEventListener('data_update', handleDataUpdate);
+      factoryService.removeEventListener('machine_update', handleMachineUpdate);
+    };
   }, []);
 
   // Prepare data for charts

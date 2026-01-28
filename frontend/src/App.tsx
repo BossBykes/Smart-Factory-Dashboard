@@ -60,7 +60,7 @@ function App() {
       case 'analytics':
         return <ProductionMetrics />;
       case 'alerts':
-        return <AlertPanel />;
+        return <AlertPanel onViewMachine={handleMachineSelect} />;
       case 'production':
         return <ProductionSchedule />;
       case 'maintenance':
