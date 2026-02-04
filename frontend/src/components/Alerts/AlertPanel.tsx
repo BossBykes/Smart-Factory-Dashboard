@@ -4,9 +4,13 @@ import { factoryService } from '../../services/factoryService';
 import { Alert } from '../../types/factory';
 import { formatDate, cn } from '../../utils/helpers';
 
-export const AlertPanel: React.FC = () => {
+interface AlertPanelProps {
+  onViewMachine: (machineId: string) => void;
+}
+
+export const AlertPanel: React.FC<AlertPanelProps> = ({ onViewMachine }) => {
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [filter, setFilter] = useState<'all' | 'unacknowledged' | 'critical'>('all');
+  const [filter, setFilter] = useState<'all' | 'unacknowledged' | 'critical' | 'resolved'>('all');
 
   useEffect(() => {
     const updateAlerts = () => {
@@ -14,9 +18,16 @@ export const AlertPanel: React.FC = () => {
     };
 
     updateAlerts();
-    const interval = setInterval(updateAlerts, 3000);
+    const handleDataUpdate = () => updateAlerts();
+    const handleAlertsUpdate = () => updateAlerts();
 
-    return () => clearInterval(interval);
+    factoryService.addEventListener('data_update', handleDataUpdate);
+    factoryService.addEventListener('alerts_update', handleAlertsUpdate);
+
+    return () => {
+      factoryService.removeEventListener('data_update', handleDataUpdate);
+      factoryService.removeEventListener('alerts_update', handleAlertsUpdate);
+    };
   }, []);
 
   const handleAcknowledge = (alertId: string) => {
@@ -24,12 +35,28 @@ export const AlertPanel: React.FC = () => {
     setAlerts(factoryService.getAlerts());
   };
 
+  const isToday = (date?: Date) => {
+    if (!date) return false;
+    const now = new Date();
+    return (
+      date.getFullYear() === now.getFullYear() &&
+      date.getMonth() === now.getMonth() &&
+      date.getDate() === now.getDate()
+    );
+  };
+
+  const resolvedTodayCount = alerts.filter(
+    (alert) => alert.status === 'resolved' && isToday(alert.resolvedAt ?? undefined)
+  ).length;
+
   const filteredAlerts = alerts.filter(alert => {
     switch (filter) {
       case 'unacknowledged':
         return !alert.acknowledged;
       case 'critical':
         return alert.severity === 'critical' || alert.severity === 'high';
+      case 'resolved':
+        return alert.status === 'resolved';
       default:
         return true;
     }
@@ -59,6 +86,13 @@ export const AlertPanel: React.FC = () => {
     }
   };
 
+  const getAlertCardStyle = (alert: Alert) => {
+    if (alert.status === 'resolved') {
+      return 'border-emerald-500/30 bg-emerald-500/10';
+    }
+    return getSeverityColor(alert.severity, alert.acknowledged);
+  };
+
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'error':
@@ -81,7 +115,7 @@ export const AlertPanel: React.FC = () => {
         </div>
         
         <div className="flex space-x-2">
-          {['all', 'unacknowledged', 'critical'].map((filterType) => (
+          {['all', 'unacknowledged', 'critical', 'resolved'].map((filterType) => (
             <button
               key={filterType}
               onClick={() => setFilter(filterType as typeof filter)}
@@ -122,7 +156,7 @@ export const AlertPanel: React.FC = () => {
         <div className="bg-gray-800 rounded-lg p-6 border border-green-500/30">
           <h3 className="text-sm font-medium text-gray-400 mb-2">Resolved Today</h3>
           <p className="text-3xl font-bold text-green-400">
-            {alerts.filter(a => a.acknowledged).length}
+            {resolvedTodayCount}
           </p>
         </div>
       </div>
@@ -143,7 +177,7 @@ export const AlertPanel: React.FC = () => {
               key={alert.id}
               className={cn(
                 "bg-gray-800 rounded-lg p-6 border transition-all duration-200",
-                getSeverityColor(alert.severity, alert.acknowledged)
+                getAlertCardStyle(alert)
               )}
             >
               <div className="flex items-start justify-between">
@@ -180,10 +214,21 @@ export const AlertPanel: React.FC = () => {
                 </div>
                 
                 <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => onViewMachine(alert.machineId)}
+                    className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded-md text-sm font-medium transition-colors"
+                  >
+                    View machine
+                  </button>
                   {alert.acknowledged ? (
                     <div className="flex items-center space-x-2 text-green-400">
                       <CheckIcon className="h-5 w-5" />
                       <span className="text-sm">Acknowledged</span>
+                    </div>
+                  ) : alert.status === 'resolved' ? (
+                    <div className="flex items-center space-x-2 text-emerald-400">
+                      <CheckIcon className="h-5 w-5" />
+                      <span className="text-sm">Resolved</span>
                     </div>
                   ) : (
                     <button

@@ -19,6 +19,7 @@ const dashboardWss = new WebSocket.Server({ server, path: '/dashboard' });
 // In-memory data store (you could use Redis or a database)
 const machineData = new Map();
 const alerts = [];
+const ALERT_COOLDOWN_MS = 120 * 1000;
 const maintenanceTasks = [];
 
 // Connected clients
@@ -145,22 +146,24 @@ function handleDashboardMessage(message) {
       console.log(`🎮 Command sent to ${machineId}: ${command}`);
       
       // Log command in alerts for dashboard
+      const now = Date.now();
       alerts.push({
-        id: `CMD-${Date.now()}`,
+        id: `CMD-${now}`,
         machineId: machineId,
         machineName: getMachineName(machineId),
         type: 'performance',
         message: `Remote command executed: ${command}`,
-        timestamp: new Date(),
+        timestamp: new Date(now),
         severity: 'low',
-        acknowledged: false
+        acknowledged: false,
+        ruleKey: 'command_executed',
+        status: 'resolved',
+        createdAt: new Date(now).toISOString(),
+        resolvedAt: new Date(now).toISOString()
       });
       
       // Broadcast updated alerts
-      broadcastToDashboard({
-        type: 'alerts_update',
-        data: alerts.slice(-10) // Last 10 alerts
-      });
+      broadcastAlertsUpdate();
       
     } else {
       console.log(`❌ Machine ${machineId} not connected`);
@@ -178,68 +181,112 @@ function handleDashboardMessage(message) {
     const alert = alerts.find(a => a.id === message.alertId);
     if (alert) {
       alert.acknowledged = true;
-      broadcastToDashboard({
-        type: 'alerts_update',
-        data: alerts.slice(-10)
-      });
+      broadcastAlertsUpdate();
     }
   }
 }
 
 function checkForAlerts(machine) {
-  const now = new Date();
-  
-  // Temperature alert
-  if (machine.temperature > 75) {
-    createAlert(machine, 'warning', 'High temperature detected', 'high');
+  let changed = false;
+
+  // Temperature alert with hysteresis
+  if (machine.temperature >= 80) {
+    changed = upsertAlert(machine, 'temp_high', 'high', 'High temperature detected', 'warning') || changed;
+  } else if (machine.temperature <= 75) {
+    changed = resolveAlert(machine.id, 'temp_high') || changed;
   }
   
-  // Vibration alert
-  if (machine.vibration > 3.5) {
-    createAlert(machine, 'warning', 'Excessive vibration detected', 'medium');
+  // Vibration alert with hysteresis
+  if (machine.vibration >= 4.0) {
+    changed = upsertAlert(machine, 'vibration_high', 'medium', 'Excessive vibration detected', 'warning') || changed;
+  } else if (machine.vibration <= 3.2) {
+    changed = resolveAlert(machine.id, 'vibration_high') || changed;
   }
   
   // Error status alert
   if (machine.status === 'error') {
-    createAlert(machine, 'error', 'Machine error state', 'critical');
+    changed = upsertAlert(machine, 'machine_error', 'critical', 'Machine error state', 'error') || changed;
+  } else {
+    changed = resolveAlert(machine.id, 'machine_error') || changed;
   }
   
-  // Low efficiency alert
+  // Low efficiency alert (no hysteresis defined)
   if (machine.efficiency < 70 && machine.status === 'running') {
-    createAlert(machine, 'performance', 'Low efficiency detected', 'medium');
+    changed = upsertAlert(machine, 'low_efficiency', 'medium', 'Low efficiency detected', 'performance') || changed;
+  } else {
+    changed = resolveAlert(machine.id, 'low_efficiency') || changed;
+  }
+
+  if (changed) {
+    broadcastAlertsUpdate();
   }
 }
 
-function createAlert(machine, type, message, severity) {
-  // Check if similar alert exists in last 5 minutes
-  const recentAlert = alerts.find(alert => 
+function upsertAlert(machine, ruleKey, severity, message, type) {
+  const now = Date.now();
+  const existing = alerts.find(alert => 
     alert.machineId === machine.id &&
-    alert.type === type &&
-    alert.message === message &&
-    (Date.now() - alert.timestamp.getTime()) < 5 * 60 * 1000
+    alert.ruleKey === ruleKey &&
+    alert.status === 'active'
   );
   
-  if (!recentAlert) {
-    const alert = {
-      id: `A-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      machineId: machine.id,
-      machineName: machine.name,
-      type: type,
-      message: message,
-      timestamp: new Date(),
-      severity: severity,
-      acknowledged: false
-    };
-    
-    alerts.push(alert);
-    
-    // Keep only last 50 alerts
-    if (alerts.length > 50) {
-      alerts.splice(0, alerts.length - 50);
-    }
-    
-    console.log(`🚨 Alert created: ${machine.name} - ${message}`);
+  if (existing) {
+    return false;
   }
+  
+  const lastAlert = [...alerts].reverse().find(alert =>
+    alert.machineId === machine.id &&
+    alert.ruleKey === ruleKey
+  );
+  
+  if (lastAlert) {
+    // Cooldown: avoid creating a new alert too soon after the last one
+    const lastCreatedAt = new Date(lastAlert.createdAt || lastAlert.timestamp || now).getTime();
+    if (now - lastCreatedAt < ALERT_COOLDOWN_MS) {
+      return false;
+    }
+  }
+  
+  const alert = {
+    id: `A-${now}-${Math.random().toString(36).substr(2, 9)}`,
+    machineId: machine.id,
+    machineName: machine.name,
+    type: type,
+    message: message,
+    severity: severity,
+    ruleKey: ruleKey,
+    status: 'active',
+    createdAt: new Date(now).toISOString(),
+    resolvedAt: null,
+    timestamp: new Date(now),
+    acknowledged: false
+  };
+  
+  alerts.push(alert);
+  
+  // Keep only last 50 alerts
+  if (alerts.length > 50) {
+    alerts.splice(0, alerts.length - 50);
+  }
+  
+  console.log(`🚨 Alert created: ${machine.name} - ${message}`);
+  return true;
+}
+
+function resolveAlert(machineId, ruleKey) {
+  const existing = alerts.find(alert => 
+    alert.machineId === machineId &&
+    alert.ruleKey === ruleKey &&
+    alert.status === 'active'
+  );
+  
+  if (existing) {
+    existing.status = 'resolved';
+    existing.resolvedAt = new Date().toISOString();
+    console.log(`✅ Alert resolved: ${existing.machineName} - ${existing.message}`);
+    return true;
+  }
+  return false;
 }
 
 function sendInitialData(ws) {
@@ -262,6 +309,13 @@ function broadcastToDashboard(message) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(message));
     }
+  });
+}
+
+function broadcastAlertsUpdate() {
+  broadcastToDashboard({
+    type: 'alerts_update',
+    data: alerts.slice(-50)
   });
 }
 
