@@ -35,6 +35,10 @@ export interface Alert {
   timestamp: Date;
   severity: 'low' | 'medium' | 'high' | 'critical';
   acknowledged: boolean;
+  ruleKey?: string;
+  status?: 'active' | 'resolved';
+  createdAt?: Date;
+  resolvedAt?: Date | null;
 }
 
 export interface MaintenanceTask {

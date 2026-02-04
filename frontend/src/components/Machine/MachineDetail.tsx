@@ -15,31 +15,45 @@ export const MachineDetail: React.FC<MachineDetailProps> = ({ machineId, onBack 
   const [historicalData, setHistoricalData] = useState<any[]>([]);
 
   useEffect(() => {
+    const appendHistoricalData = (foundMachine: Machine) => {
+      setHistoricalData(prev => {
+        const newEntry = {
+          time: new Date().toLocaleTimeString(),
+          efficiency: foundMachine.efficiency,
+          temperature: foundMachine.temperature,
+          vibration: foundMachine.vibration,
+          power: foundMachine.powerConsumption
+        };
+        
+        const updated = [...prev, newEntry];
+        return updated.slice(-20); // Keep last 20 entries
+      });
+    };
+
     const updateMachine = () => {
       const foundMachine = factoryService.getMachine(machineId);
       if (foundMachine) {
         setMachine(foundMachine);
-        
-        // Generate mock historical data
-        setHistoricalData(prev => {
-          const newEntry = {
-            time: new Date().toLocaleTimeString(),
-            efficiency: foundMachine.efficiency,
-            temperature: foundMachine.temperature,
-            vibration: foundMachine.vibration,
-            power: foundMachine.powerConsumption
-          };
-          
-          const updated = [...prev, newEntry];
-          return updated.slice(-20); // Keep last 20 entries
-        });
+        appendHistoricalData(foundMachine);
+      }
+    };
+
+    const handleDataUpdate = () => updateMachine();
+    const handleMachineUpdate = (updatedMachine: Machine) => {
+      if (updatedMachine.id === machineId) {
+        setMachine(updatedMachine);
+        appendHistoricalData(updatedMachine);
       }
     };
 
     updateMachine();
-    const interval = setInterval(updateMachine, 3000);
+    factoryService.addEventListener('data_update', handleDataUpdate);
+    factoryService.addEventListener('machine_update', handleMachineUpdate);
 
-    return () => clearInterval(interval);
+    return () => {
+      factoryService.removeEventListener('data_update', handleDataUpdate);
+      factoryService.removeEventListener('machine_update', handleMachineUpdate);
+    };
   }, [machineId]);
 
   if (!machine) {

@@ -25,10 +25,12 @@ class FactoryService {
   private normalizeAlert(alert: any): Alert {
     const timestamp = this.toDate(alert.timestamp) || new Date();
     const createdAt = this.toDate(alert.createdAt);
+    const resolvedAt = this.toDate(alert.resolvedAt);
     return {
       ...alert,
       timestamp,
-      ...(createdAt ? { createdAt } : {})
+      ...(createdAt ? { createdAt } : {}),
+      resolvedAt: resolvedAt ?? null
     } as Alert;
   }
 

@@ -13,9 +13,13 @@ export const MaintenanceSchedule: React.FC = () => {
     };
 
     updateTasks();
-    const interval = setInterval(updateTasks, 3000);
+    const handleDataUpdate = () => updateTasks();
 
-    return () => clearInterval(interval);
+    factoryService.addEventListener('data_update', handleDataUpdate);
+
+    return () => {
+      factoryService.removeEventListener('data_update', handleDataUpdate);
+    };
   }, []);
 
   const getStatusColor = (status: string) => {
