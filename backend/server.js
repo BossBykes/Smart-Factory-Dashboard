@@ -26,11 +26,11 @@ const maintenanceTasks = [];
 const arduinoClients = new Map();
 const dashboardClients = new Set();
 
-console.log('🏭 Smart Factory Server Starting...');
+console.log(' Smart Factory Server Starting...');
 
 // Arduino WebSocket Handler
 arduinoWss.on('connection', (ws, req) => {
-  console.log('🔧 Arduino device connected');
+  console.log(' Arduino device connected');
   
   ws.on('message', (data) => {
     try {
@@ -42,7 +42,7 @@ arduinoWss.on('connection', (ws, req) => {
   });
   
   ws.on('close', () => {
-    console.log('🔧 Arduino device disconnected');
+    console.log(' Arduino device disconnected');
     // Remove from clients map
     for (const [machineId, client] of arduinoClients.entries()) {
       if (client === ws) {
@@ -59,7 +59,7 @@ arduinoWss.on('connection', (ws, req) => {
 
 // Dashboard WebSocket Handler
 dashboardWss.on('connection', (ws, req) => {
-  console.log('📱 Dashboard connected');
+  console.log(' Dashboard connected');
   dashboardClients.add(ws);
   
   // Send initial data to dashboard
@@ -75,7 +75,7 @@ dashboardWss.on('connection', (ws, req) => {
   });
   
   ws.on('close', () => {
-    console.log('📱 Dashboard disconnected');
+    console.log(' Dashboard disconnected');
     dashboardClients.delete(ws);
   });
   
@@ -125,7 +125,7 @@ function handleArduinoMessage(message) {
       data: machineInfo
     });
     
-    console.log(`📊 Updated data for ${machineId}: ${message.status} - ${message.temperature}°C`);
+    console.log(` Updated data for ${machineId}: ${message.status} - ${message.temperature}°C`);
   }
 }
 
@@ -143,7 +143,7 @@ function handleDashboardMessage(message) {
         timestamp: Date.now()
       }));
       
-      console.log(`🎮 Command sent to ${machineId}: ${command}`);
+      console.log(` Command sent to ${machineId}: ${command}`);
       
       // Log command in alerts for dashboard
       const now = Date.now();
@@ -166,7 +166,7 @@ function handleDashboardMessage(message) {
       broadcastAlertsUpdate();
       
     } else {
-      console.log(`❌ Machine ${machineId} not connected`);
+      console.log(` Machine ${machineId} not connected`);
       
       // Send error back to dashboard
       broadcastToDashboard({
@@ -269,7 +269,7 @@ function upsertAlert(machine, ruleKey, severity, message, type) {
     alerts.splice(0, alerts.length - 50);
   }
   
-  console.log(`🚨 Alert created: ${machine.name} - ${message}`);
+  console.log(` Alert created: ${machine.name} - ${message}`);
   return true;
 }
 
@@ -283,7 +283,7 @@ function resolveAlert(machineId, ruleKey) {
   if (existing) {
     existing.status = 'resolved';
     existing.resolvedAt = new Date().toISOString();
-    console.log(`✅ Alert resolved: ${existing.machineName} - ${existing.message}`);
+    console.log(` Alert resolved: ${existing.machineName} - ${existing.message}`);
     return true;
   }
   return false;
@@ -464,16 +464,16 @@ app.get('/health', (req, res) => {
 // Start the server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`\n🚀 Smart Factory Server running on port ${PORT}`);
-  console.log(`📱 Dashboard WebSocket: ws://localhost:${PORT}/dashboard`);
-  console.log(`🔧 Arduino WebSocket: ws://localhost:3001`);
-  console.log(`🌐 REST API: http://localhost:${PORT}/api`);
-  console.log('\n💡 Ready for connections!');
+  console.log(`\n Smart Factory Server running on port ${PORT}`);
+  console.log(` Dashboard WebSocket: ws://localhost:${PORT}/dashboard`);
+  console.log(` Arduino WebSocket: ws://localhost:3001`);
+  console.log(` REST API: http://localhost:${PORT}/api`);
+  console.log('\n Ready for connections!');
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\n🛑 Shutting down Smart Factory Server...');
+  console.log('\n Shutting down Smart Factory Server...');
   arduinoWss.close();
   dashboardWss.close();
   server.close();
@@ -493,6 +493,6 @@ setInterval(() => {
   }
   
   if (alerts.length !== initialLength) {
-    console.log(`🧹 Cleaned up ${initialLength - alerts.length} old alerts`);
+    console.log(` Cleaned up ${initialLength - alerts.length} old alerts`);
   }
 }, 60 * 60 * 1000); // Run every hour

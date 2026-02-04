@@ -72,7 +72,7 @@ const updateMachine = (machine) => {
 const ws = new WebSocket(WS_URL);
 
 ws.on('open', () => {
-  console.log(`🧪 Simulator connected to ${WS_URL}`);
+  console.log(` Simulator connected to ${WS_URL}`);
   setInterval(() => {
     machines.forEach((machine) => {
       const updated = updateMachine(machine);
@@ -93,9 +93,9 @@ ws.on('open', () => {
 });
 
 ws.on('close', () => {
-  console.log('🧪 Simulator disconnected');
+  console.log(' Simulator disconnected');
 });
 
 ws.on('error', (err) => {
-  console.error('🧪 Simulator WebSocket error:', err);
+  console.error(' Simulator WebSocket error:', err);
 });
