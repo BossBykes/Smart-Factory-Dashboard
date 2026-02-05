@@ -66,12 +66,12 @@ export const MachineDetail: React.FC<MachineDetailProps> = ({ machineId, onBack 
 
   const getMachineTypeIcon = (type: string) => {
     switch (type) {
-      case 'CNC': return '⚙️';
-      case 'Assembly': return '🔧';
-      case 'Quality Check': return '🔍';
-      case 'Packaging': return '📦';
-      case '3D Printer': return '🖨️';
-      default: return '⚡';
+      case 'CNC': return '';
+      case 'Assembly': return '';
+      case 'Quality Check': return '';
+      case 'Packaging': return '';
+      case '3D Printer': return '';
+      default: return '';
     }
   };
 

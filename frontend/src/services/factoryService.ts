@@ -90,7 +90,7 @@ class FactoryService {
       this.websocket = new WebSocket(wsUrl);
       
       this.websocket.onopen = () => {
-        console.log('🔗 Connected to Smart Factory Server');
+        console.log(' Connected to Smart Factory Server');
         this.reconnectAttempts = 0;
         this.notifyListeners('connection', { status: 'connected' });
       };
@@ -105,7 +105,7 @@ class FactoryService {
       };
       
       this.websocket.onclose = () => {
-        console.log('🔌 Disconnected from Smart Factory Server');
+        console.log(' Disconnected from Smart Factory Server');
         this.notifyListeners('connection', { status: 'disconnected' });
         this.attemptReconnect();
       };
@@ -122,7 +122,7 @@ class FactoryService {
   }
 
   private fallbackToMockData() {
-    console.log('📝 Using mock data - WebSocket unavailable');
+    console.log(' Using mock data - WebSocket unavailable');
     // Import and use your existing mock data as fallback
     this.machines = this.generateMockMachines();
     this.jobs = this.generateMockJobs();
@@ -135,13 +135,13 @@ class FactoryService {
   private attemptReconnect() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`🔄 Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+      console.log(` Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
       
       setTimeout(() => {
         this.initializeWebSocket();
       }, 3000 * this.reconnectAttempts); // Exponential backoff
     } else {
-      console.log('❌ Max reconnection attempts reached. Switching to mock data.');
+      console.log(' Max reconnection attempts reached. Switching to mock data.');
       this.fallbackToMockData();
     }
   }
@@ -244,7 +244,7 @@ class FactoryService {
         };
         
         this.websocket.send(JSON.stringify(message));
-        console.log(`🎮 Command sent: ${command} to ${machineId}`);
+        console.log(` Command sent: ${command} to ${machineId}`);
         return true;
       } catch (error) {
         console.error('Failed to send command:', error);
