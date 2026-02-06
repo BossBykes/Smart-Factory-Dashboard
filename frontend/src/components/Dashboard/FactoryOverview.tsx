@@ -34,17 +34,17 @@ export const FactoryOverview: React.FC<FactoryOverviewProps> = ({ onMachineSelec
   const getMachineTypeIcon = (type: string) => {
     switch (type) {
       case 'CNC':
-        return '⚙️';
+        return '';
       case 'Assembly':
-        return '🔧';
+        return '';
       case 'Quality Check':
-        return '🔍';
+        return '';
       case 'Packaging':
-        return '📦';
+        return '';
       case '3D Printer':
-        return '🖨️';
+        return '';
       default:
-        return '⚡';
+        return '';
     }
   };
 

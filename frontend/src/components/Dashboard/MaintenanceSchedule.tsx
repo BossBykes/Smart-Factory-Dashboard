@@ -55,13 +55,13 @@ export const MaintenanceSchedule: React.FC = () => {
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'preventive':
-        return '🔧';
+        return '';
       case 'predictive':
-        return '📊';
+        return '';
       case 'corrective':
-        return '🚨';
+        return '';
       default:
-        return '⚙️';
+        return '';
     }
   };
 
