@@ -298,6 +298,33 @@ class FactoryService {
     }
   }
 
+  public acknowledgeAlertsForMachine(machineId: string): void {
+    const alertsToAcknowledge = this.alerts.filter(
+      (alert) => alert.machineId === machineId && alert.status !== 'resolved' && !alert.acknowledged
+    );
+
+    if (alertsToAcknowledge.length === 0) {
+      return;
+    }
+
+    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+      alertsToAcknowledge.forEach((alert) => {
+        const message = {
+          type: 'acknowledge_alert',
+          alertId: alert.id,
+          timestamp: Date.now()
+        };
+        this.websocket?.send(JSON.stringify(message));
+      });
+    }
+
+    alertsToAcknowledge.forEach((alert) => {
+      alert.acknowledged = true;
+    });
+
+    this.notifyListeners('alerts_update', this.alerts);
+  }
+
   // Data access methods
   getAllMachines(): Machine[] {
     return this.machines;
