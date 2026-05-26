@@ -137,7 +137,7 @@ export const MachineDetail: React.FC<MachineDetailProps> = ({ machineId, onBack 
 
         <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
           <h3 className="text-sm font-medium text-gray-400 mb-2">Vibration</h3>
-          <p className="text-3xl font-bold text-white">{machine.vibration}</p>
+          <p className="text-3xl font-bold text-white">{machine.vibration} mm/s</p>
           <p className="text-sm text-gray-400 mt-2">
             {machine.vibration > 3 ? 'High' : machine.vibration > 1.5 ? 'Normal' : 'Low'}
           </p>
@@ -145,7 +145,7 @@ export const MachineDetail: React.FC<MachineDetailProps> = ({ machineId, onBack 
 
         <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
           <h3 className="text-sm font-medium text-gray-400 mb-2">Power</h3>
-          <p className="text-3xl font-bold text-white">{machine.powerConsumption}kW</p>
+          <p className="text-3xl font-bold text-white">{machine.powerConsumption} kW</p>
           <p className="text-sm text-gray-400 mt-2">Current draw</p>
         </div>
       </div>

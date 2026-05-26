@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigation } from './components/Layout/Navigation';
 import { FactoryOverview } from './components/Dashboard/FactoryOverview';
 import { MachineDetail } from './components/Machine/MachineDetail';
+import { MachinesPage } from './components/Machine/MachinesPage';
 import { ProductionMetrics } from './components/Dashboard/ProductionMetrics';
 import { AlertPanel } from './components/Alerts/AlertPanel';
 import { ProductionSchedule } from './components/Dashboard/ProductionSchedule';
@@ -56,7 +57,7 @@ function App() {
           <FactoryOverview onMachineSelect={handleMachineSelect} />
         );
       case 'machines':
-        return <FactoryOverview onMachineSelect={handleMachineSelect} />;
+        return <MachinesPage onMachineSelect={handleMachineSelect} />;
       case 'analytics':
         return <ProductionMetrics />;
       case 'alerts':
