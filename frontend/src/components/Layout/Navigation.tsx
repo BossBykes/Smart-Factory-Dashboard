@@ -20,7 +20,7 @@ export const Navigation: React.FC<NavigationProps> = ({ currentView, onViewChang
   );
 
   useEffect(() => {
-    const handleConnectionUpdate = (data: any) => {
+    const handleConnectionUpdate = (data: { status: 'connected' | 'disconnected' | 'error' }) => {
       setConnectionStatus(data.status);
     };
 

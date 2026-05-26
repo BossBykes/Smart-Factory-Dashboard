@@ -58,6 +58,14 @@ export const ProductionMetrics: React.FC = () => {
     { day: 'Sun', output: 680, target: 800 }
   ];
 
+  const runningMachines = machines.filter(m => m.status === 'running');
+  const averageEfficiency = runningMachines.length > 0
+    ? Math.round(runningMachines.reduce((sum, m) => sum + m.efficiency, 0) / runningMachines.length)
+    : 0;
+  const machineUptime = machines.length > 0
+    ? Math.round(((machines.length - machines.filter(m => m.status === 'error' || m.status === 'maintenance').length) / machines.length) * 100)
+    : 0;
+
   return (
     <div className="space-y-8">
       <div>
@@ -76,7 +84,7 @@ export const ProductionMetrics: React.FC = () => {
         <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
           <h3 className="text-sm font-medium text-gray-400 mb-2">Average Efficiency</h3>
           <p className="text-3xl font-bold text-white">
-            {Math.round(machines.filter(m => m.status === 'running').reduce((sum, m) => sum + m.efficiency, 0) / machines.filter(m => m.status === 'running').length || 0)}%
+            {averageEfficiency}%
           </p>
           <p className="text-sm text-yellow-400 mt-1">-2% from target</p>
         </div>
@@ -90,7 +98,7 @@ export const ProductionMetrics: React.FC = () => {
         <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
           <h3 className="text-sm font-medium text-gray-400 mb-2">Machine Uptime</h3>
           <p className="text-3xl font-bold text-white">
-            {Math.round(((machines.length - machines.filter(m => m.status === 'error' || m.status === 'maintenance').length) / machines.length) * 100)}%
+            {machineUptime}%
           </p>
           <p className="text-sm text-green-400 mt-1">Above target</p>
         </div>
@@ -129,7 +137,7 @@ export const ProductionMetrics: React.FC = () => {
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"

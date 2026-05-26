@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarDaysIcon, ClockIcon, UserIcon } from '@heroicons/react/24/outline';
+import { CalendarDaysIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { factoryService } from '../../services/factoryService';
 import { ProductionJob } from '../../types/factory';
 import { formatDate, cn } from '../../utils/helpers';

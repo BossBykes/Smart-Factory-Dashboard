@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { factoryService } from '../../services/factoryService';
 import { Machine } from '../../types/factory';
 import { getStatusColor, getStatusBgColor, formatDate, cn } from '../../utils/helpers';
@@ -10,9 +10,17 @@ interface MachineDetailProps {
   onBack: () => void;
 }
 
+interface MachineHistoryPoint {
+  time: string;
+  efficiency: number;
+  temperature: number;
+  vibration: number;
+  power: number;
+}
+
 export const MachineDetail: React.FC<MachineDetailProps> = ({ machineId, onBack }) => {
   const [machine, setMachine] = useState<Machine | null>(null);
-  const [historicalData, setHistoricalData] = useState<any[]>([]);
+  const [historicalData, setHistoricalData] = useState<MachineHistoryPoint[]>([]);
 
   useEffect(() => {
     const appendHistoricalData = (foundMachine: Machine) => {

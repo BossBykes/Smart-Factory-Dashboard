@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { WrenchScrewdriverIcon, CalendarIcon, UserIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, UserIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { factoryService } from '../../services/factoryService';
 import { MaintenanceTask } from '../../types/factory';
 import { formatDate, formatDuration, cn } from '../../utils/helpers';

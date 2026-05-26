@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigation } from './components/Layout/Navigation';
 import { FactoryOverview } from './components/Dashboard/FactoryOverview';
 import { MachineDetail } from './components/Machine/MachineDetail';

@@ -29,11 +29,11 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
 
   useEffect(() => {
     // Listen for connection status updates
-    const handleConnectionUpdate = (data: any) => {
+    const handleConnectionUpdate = (data: { status: 'connected' | 'disconnected' | 'error' }) => {
       setConnectionStatus(data.status);
     };
 
-    const handleCommandError = (data: any) => {
+    const handleCommandError = (data: { machineId: string; message: string }) => {
       if (data.machineId === machine.id) {
         setIsLoading(false);
         addToCommandHistory(lastCommand || 'unknown', false);

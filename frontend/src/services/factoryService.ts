@@ -1,5 +1,33 @@
 import { Machine, ProductionJob, Alert, MaintenanceTask, KPI } from '../types/factory';
 
+type ConnectionStatus = 'connected' | 'disconnected' | 'error';
+type RawRecord = Record<string, unknown>;
+
+interface ConnectionEvent {
+  status: ConnectionStatus;
+  error?: Event;
+}
+
+interface DataUpdateEvent {
+  type: string;
+}
+
+interface CommandErrorEvent {
+  machineId: string;
+  message: string;
+}
+
+interface FactoryEventMap {
+  connection: ConnectionEvent;
+  data_update: DataUpdateEvent;
+  machine_update: Machine;
+  alerts_update: Alert[];
+  command_error: CommandErrorEvent;
+}
+
+type FactoryEventName = keyof FactoryEventMap;
+type StoredListener = (data: unknown) => void;
+
 class FactoryService {
   private machines: Machine[] = [];
   private jobs: ProductionJob[] = [];
@@ -9,51 +37,66 @@ class FactoryService {
   private websocket: WebSocket | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
-  private listeners: Map<string, Set<Function>> = new Map();
+  private listeners: Map<FactoryEventName, Set<StoredListener>> = new Map();
 
   constructor() {
     this.initializeWebSocket();
   }
 
-  private toDate(value: any): Date | undefined {
+  private isRecord(value: unknown): value is RawRecord {
+    return typeof value === 'object' && value !== null;
+  }
+
+  private toRecord(value: unknown): RawRecord {
+    return this.isRecord(value) ? value : {};
+  }
+
+  private toArray(value: unknown): unknown[] {
+    return Array.isArray(value) ? value : [];
+  }
+
+  private toDate(value: unknown): Date | undefined {
     if (!value) return undefined;
     if (value instanceof Date) return value;
-    const parsed = new Date(value);
+    const parsed = new Date(String(value));
     return isNaN(parsed.getTime()) ? undefined : parsed;
   }
 
-  private normalizeAlert(alert: any): Alert {
-    const timestamp = this.toDate(alert.timestamp) || new Date();
-    const createdAt = this.toDate(alert.createdAt);
-    const resolvedAt = this.toDate(alert.resolvedAt);
+  private normalizeAlert(alert: unknown): Alert {
+    const rawAlert = this.toRecord(alert);
+    const timestamp = this.toDate(rawAlert.timestamp) || new Date();
+    const createdAt = this.toDate(rawAlert.createdAt);
+    const resolvedAt = this.toDate(rawAlert.resolvedAt);
     return {
-      ...alert,
+      ...rawAlert,
       timestamp,
       ...(createdAt ? { createdAt } : {}),
       resolvedAt: resolvedAt ?? null
     } as Alert;
   }
 
-  private normalizeMaintenanceTask(task: any): MaintenanceTask {
-    const scheduledDate = this.toDate(task.scheduledDate);
-    const dueDate = this.toDate(task.dueDate);
-    const date = this.toDate(task.date);
+  private normalizeMaintenanceTask(task: unknown): MaintenanceTask {
+    const rawTask = this.toRecord(task);
+    const scheduledDate = this.toDate(rawTask.scheduledDate);
+    const dueDate = this.toDate(rawTask.dueDate);
+    const date = this.toDate(rawTask.date);
     return {
-      ...task,
+      ...rawTask,
       ...(scheduledDate ? { scheduledDate } : {}),
       ...(dueDate ? { dueDate } : {}),
       ...(date ? { date } : {})
     } as MaintenanceTask;
   }
 
-  private normalizeJob(job: any): ProductionJob {
-    const startTime = this.toDate(job.startTime);
-    const endTime = this.toDate(job.endTime);
-    const estimatedEndTime = this.toDate(job.estimatedEndTime);
-    const scheduledStart = this.toDate(job.scheduledStart);
-    const scheduledEnd = this.toDate(job.scheduledEnd);
+  private normalizeJob(job: unknown): ProductionJob {
+    const rawJob = this.toRecord(job);
+    const startTime = this.toDate(rawJob.startTime);
+    const endTime = this.toDate(rawJob.endTime);
+    const estimatedEndTime = this.toDate(rawJob.estimatedEndTime);
+    const scheduledStart = this.toDate(rawJob.scheduledStart);
+    const scheduledEnd = this.toDate(rawJob.scheduledEnd);
     return {
-      ...job,
+      ...rawJob,
       ...(startTime ? { startTime } : {}),
       ...(endTime ? { endTime } : {}),
       ...(estimatedEndTime ? { estimatedEndTime } : {}),
@@ -62,12 +105,13 @@ class FactoryService {
     } as ProductionJob;
   }
 
-  private normalizeMachine(machine: any): Machine {
-    const lastMaintenance = this.toDate(machine.lastMaintenance);
-    const nextMaintenance = this.toDate(machine.nextMaintenance);
-    const lastUpdated = this.toDate(machine.lastUpdated);
+  private normalizeMachine(machine: unknown): Machine {
+    const rawMachine = this.toRecord(machine);
+    const lastMaintenance = this.toDate(rawMachine.lastMaintenance);
+    const nextMaintenance = this.toDate(rawMachine.nextMaintenance);
+    const lastUpdated = this.toDate(rawMachine.lastUpdated);
     return {
-      ...machine,
+      ...rawMachine,
       ...(lastMaintenance ? { lastMaintenance } : {}),
       ...(nextMaintenance ? { nextMaintenance } : {}),
       ...(lastUpdated ? { lastUpdated } : {})
@@ -78,7 +122,11 @@ class FactoryService {
     try {
       // Close any existing socket before creating a new one
       if (this.websocket) {
-        try { this.websocket.close(); } catch {}
+        try {
+          this.websocket.close();
+        } catch {
+          // Existing socket may already be closed.
+        }
         this.websocket = null;
       }
 
@@ -97,7 +145,7 @@ class FactoryService {
       
       this.websocket.onmessage = (event) => {
         try {
-          const message = JSON.parse(event.data);
+          const message: unknown = JSON.parse(event.data);
           this.handleWebSocketMessage(message);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -146,34 +194,47 @@ class FactoryService {
     }
   }
 
-  private handleWebSocketMessage(message: any) {
-    const { type, data } = message;
+  private normalizeCommandError(data: unknown): CommandErrorEvent {
+    const rawError = this.toRecord(data);
+    return {
+      machineId: String(rawError.machineId ?? ''),
+      message: String(rawError.message ?? 'Command failed')
+    };
+  }
+
+  private handleWebSocketMessage(message: unknown) {
+    const rawMessage = this.toRecord(message);
+    const type = String(rawMessage.type ?? '');
+    const data = rawMessage.data;
     
     switch (type) {
-      case 'initial_data':
-        this.machines = (data.machines || []).map((m: any) => this.normalizeMachine(m));
-        this.alerts = (data.alerts || []).map((a: any) => this.normalizeAlert(a));
-        this.maintenanceTasks = (data.maintenanceTasks || []).map((t: any) => this.normalizeMaintenanceTask(t));
-        this.jobs = (data.jobs || []).map((j: any) => this.normalizeJob(j));
-        this.kpis = data.kpis || [];
+      case 'initial_data': {
+        const initialData = this.toRecord(data);
+        this.machines = this.toArray(initialData.machines).map((machine) => this.normalizeMachine(machine));
+        this.alerts = this.toArray(initialData.alerts).map((alert) => this.normalizeAlert(alert));
+        this.maintenanceTasks = this.toArray(initialData.maintenanceTasks).map((task) => this.normalizeMaintenanceTask(task));
+        this.jobs = this.toArray(initialData.jobs).map((job) => this.normalizeJob(job));
+        this.kpis = this.toArray(initialData.kpis) as KPI[];
         this.notifyListeners('data_update', { type: 'initial' });
         break;
+      }
         
-      case 'machine_update':
+      case 'machine_update': {
         const normalized = this.normalizeMachine(data);
         this.updateMachine(normalized);
         this.kpis = this.calculateKPIs();
         this.notifyListeners('machine_update', normalized);
         break;
+      }
         
       case 'alerts_update': {
-        this.alerts = (data || []).map((a: any) => this.normalizeAlert(a));
+        this.alerts = this.toArray(data).map((alert) => this.normalizeAlert(alert));
         this.notifyListeners('alerts_update', this.alerts);
         break;
       }
         
       case 'command_error':
-        this.notifyListeners('command_error', data);
+        this.notifyListeners('command_error', this.normalizeCommandError(data));
         break;
         
       default:
@@ -184,28 +245,39 @@ class FactoryService {
   private updateMachine(machineData: Machine) {
     const index = this.machines.findIndex(m => m.id === machineData.id);
     if (index !== -1) {
-      this.machines[index] = machineData;
+      this.machines = this.machines.map(machine =>
+        machine.id === machineData.id ? machineData : machine
+      );
     } else {
-      this.machines.push(machineData);
+      this.machines = [...this.machines, machineData];
     }
   }
 
   // Event listener system
-  public addEventListener(event: string, callback: Function) {
+  public addEventListener<EventName extends FactoryEventName>(
+    event: EventName,
+    callback: (data: FactoryEventMap[EventName]) => void
+  ) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
-    this.listeners.get(event)!.add(callback);
+    this.listeners.get(event)!.add(callback as StoredListener);
   }
 
-  public removeEventListener(event: string, callback: Function) {
+  public removeEventListener<EventName extends FactoryEventName>(
+    event: EventName,
+    callback: (data: FactoryEventMap[EventName]) => void
+  ) {
     const eventListeners = this.listeners.get(event);
     if (eventListeners) {
-      eventListeners.delete(callback);
+      eventListeners.delete(callback as StoredListener);
     }
   }
 
-  private notifyListeners(event: string, data: any) {
+  private notifyListeners<EventName extends FactoryEventName>(
+    event: EventName,
+    data: FactoryEventMap[EventName]
+  ) {
     const eventListeners = this.listeners.get(event);
     if (eventListeners) {
       eventListeners.forEach(callback => callback(data));
@@ -327,7 +399,7 @@ class FactoryService {
 
   // Data access methods
   getAllMachines(): Machine[] {
-    return this.machines;
+    return [...this.machines];
   }
 
   getMachine(id: string): Machine | undefined {
@@ -335,19 +407,19 @@ class FactoryService {
   }
 
   getProductionJobs(): ProductionJob[] {
-    return this.jobs;
+    return [...this.jobs];
   }
 
   getAlerts(): Alert[] {
-    return this.alerts.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    return [...this.alerts].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }
 
   getUnacknowledgedAlerts(): Alert[] {
-    return this.alerts.filter(alert => !alert.acknowledged);
+    return this.alerts.filter(alert => !alert.acknowledged && alert.status !== 'resolved');
   }
 
   getMaintenanceTasks(): MaintenanceTask[] {
-    return this.maintenanceTasks.sort((a, b) => {
+    return [...this.maintenanceTasks].sort((a, b) => {
       const ta = a.scheduledDate?.getTime?.() ?? 0;
       const tb = b.scheduledDate?.getTime?.() ?? 0;
       return ta - tb;
@@ -355,7 +427,7 @@ class FactoryService {
   }
 
   getKPIs(): KPI[] {
-    return this.kpis;
+    return [...this.kpis];
   }
 
   getConnectionStatus(): 'connected' | 'disconnected' | 'error' {
@@ -490,7 +562,9 @@ class FactoryService {
       },
       {
         name: 'Machine Uptime',
-        value: Math.round(((this.machines.length - this.machines.filter(m => m.status === 'error' || m.status === 'maintenance').length) / this.machines.length) * 100),
+        value: this.machines.length > 0
+          ? Math.round(((this.machines.length - this.machines.filter(m => m.status === 'error' || m.status === 'maintenance').length) / this.machines.length) * 100)
+          : 0,
         unit: '%',
         trend: 'stable',
         target: 95
