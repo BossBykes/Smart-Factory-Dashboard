@@ -2,6 +2,7 @@ const WebSocket = require('ws');
 
 const WS_URL = 'ws://localhost:3001';
 const SEND_INTERVAL_MS = 1000;
+const COMMAND_HOLD_MS = 10 * 1000;
 const MACHINE_IDS = ['M001', 'M002', 'M003', 'M004', 'M005', 'M006'];
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -29,11 +30,13 @@ const machines = MACHINE_IDS.map((id) => ({
   efficiency: randInt(60, 92),
   output: randInt(0, 200),
   powerConsumption: randFloat(1.5, 6.0),
+  commandHoldUntil: 0,
 }));
 
 const updateMachine = (machine) => {
-  // Decide status (error rarely)
-  machine.status = pickStatus();
+  if (Date.now() >= machine.commandHoldUntil) {
+    machine.status = pickStatus();
+  }
 
   const isError = machine.status === 'error';
   const isRunning = machine.status === 'running';
@@ -69,6 +72,42 @@ const updateMachine = (machine) => {
   return machine;
 };
 
+const applyCommand = (message) => {
+  if (!message || typeof message !== 'object') return;
+
+  const { command, machineId } = message;
+  const machine = machines.find((item) => item.machineId === machineId);
+
+  if (!machine || typeof command !== 'string') return;
+
+  console.log(`🎮 Simulator command received: ${command} for ${machineId}`);
+
+  switch (command) {
+    case 'start':
+      machine.status = 'running';
+      break;
+    case 'stop':
+      machine.status = 'idle';
+      break;
+    case 'emergency_stop':
+      machine.status = 'error';
+      break;
+    case 'reset_emergency':
+      if (machine.status === 'error') {
+        machine.status = 'idle';
+      }
+      break;
+    case 'maintenance_mode':
+      machine.status = 'maintenance';
+      break;
+    default:
+      console.log(` Simulator ignored unknown command: ${command}`);
+      return;
+  }
+
+  machine.commandHoldUntil = Date.now() + COMMAND_HOLD_MS;
+};
+
 const ws = new WebSocket(WS_URL);
 
 ws.on('open', () => {
@@ -90,6 +129,15 @@ ws.on('open', () => {
       ws.send(JSON.stringify(payload));
     });
   }, SEND_INTERVAL_MS);
+});
+
+ws.on('message', (data) => {
+  try {
+    const message = JSON.parse(data.toString());
+    applyCommand(message);
+  } catch (error) {
+    console.error(' Simulator failed to parse command:', error);
+  }
 });
 
 ws.on('close', () => {

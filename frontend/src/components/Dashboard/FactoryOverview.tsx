@@ -107,7 +107,7 @@ export const FactoryOverview: React.FC<FactoryOverviewProps> = ({ onMachineSelec
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Power</span>
-                  <span className="text-white">{machine.powerConsumption}kW</span>
+                  <span className="text-white">{machine.powerConsumption} kW</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Location</span>

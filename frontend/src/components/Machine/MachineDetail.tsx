@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { MachineControlPanel } from '../Controls/MachineControlPanel';
 import { factoryService } from '../../services/factoryService';
 import { Machine } from '../../types/factory';
 import { getStatusColor, getStatusBgColor, formatDate, cn } from '../../utils/helpers';
@@ -21,6 +22,10 @@ interface MachineHistoryPoint {
 export const MachineDetail: React.FC<MachineDetailProps> = ({ machineId, onBack }) => {
   const [machine, setMachine] = useState<Machine | null>(null);
   const [historicalData, setHistoricalData] = useState<MachineHistoryPoint[]>([]);
+
+  const handleControlUpdate = useCallback((updatedMachine: Machine) => {
+    setMachine(updatedMachine);
+  }, []);
 
   useEffect(() => {
     const appendHistoricalData = (foundMachine: Machine) => {
@@ -95,23 +100,27 @@ export const MachineDetail: React.FC<MachineDetailProps> = ({ machineId, onBack 
         <h1 className="text-3xl font-bold text-white">Machine Details</h1>
       </div>
 
-      {/* Machine Header */}
-      <div className={cn("bg-gray-800 rounded-lg p-6 border", getStatusBgColor(machine.status))}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <span className="text-4xl">{getMachineTypeIcon(machine.type)}</span>
-            <div>
-              <h2 className="text-2xl font-bold text-white">{machine.name}</h2>
-              <p className="text-gray-400">{machine.type} • {machine.location}</p>
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_420px]">
+        {/* Machine Header */}
+        <div className={cn("bg-gray-800 rounded-lg p-6 border", getStatusBgColor(machine.status))}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <span className="text-4xl">{getMachineTypeIcon(machine.type)}</span>
+              <div>
+                <h2 className="text-2xl font-bold text-white">{machine.name}</h2>
+                <p className="text-gray-400">{machine.type} • {machine.location}</p>
+              </div>
             </div>
-          </div>
-          <div className={cn("px-4 py-2 rounded-full font-medium", getStatusColor(machine.status))}>
-            <div className="flex items-center space-x-2">
-              <div className={cn("w-3 h-3 rounded-full", machine.status === 'running' ? 'bg-green-400 animate-pulse' : machine.status === 'error' ? 'bg-red-400 animate-pulse' : 'bg-gray-400')} />
-              <span className="capitalize">{machine.status}</span>
+            <div className={cn("px-4 py-2 rounded-full font-medium", getStatusColor(machine.status))}>
+              <div className="flex items-center space-x-2">
+                <div className={cn("w-3 h-3 rounded-full", machine.status === 'running' ? 'bg-green-400 animate-pulse' : machine.status === 'error' ? 'bg-red-400 animate-pulse' : 'bg-gray-400')} />
+                <span className="capitalize">{machine.status}</span>
+              </div>
             </div>
           </div>
         </div>
+
+        <MachineControlPanel machine={machine} onUpdate={handleControlUpdate} />
       </div>
 
       {/* Key Metrics */}
