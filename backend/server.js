@@ -429,16 +429,41 @@ function generateMaintenanceTasks() {
 }
 
 function generateProductionJobs() {
+  const now = Date.now();
+  const hourMs = 60 * 60 * 1000;
+
   return [
     {
       id: 'J001',
       productName: 'Engine Component',
       quantity: 50,
-      completed: Math.floor(Math.random() * 30) + 10,
-      startTime: new Date(Date.now() - 4 * 60 * 60 * 1000),
-      estimatedEndTime: new Date(Date.now() + 6 * 60 * 60 * 1000),
+      completed: 32,
+      startTime: new Date(now - 4 * hourMs),
+      estimatedEndTime: new Date(now + 6 * hourMs),
       priority: 'high',
       assignedMachines: ['M001'],
+      status: 'in-progress'
+    },
+    {
+      id: 'J002',
+      productName: 'Assembly Module',
+      quantity: 40,
+      completed: 18,
+      startTime: new Date(now - 2 * hourMs),
+      estimatedEndTime: new Date(now + 5 * hourMs),
+      priority: 'medium',
+      assignedMachines: ['M002', 'M003'],
+      status: 'in-progress'
+    },
+    {
+      id: 'J003',
+      productName: 'Packaging Batch',
+      quantity: 60,
+      completed: 45,
+      startTime: new Date(now - 6 * hourMs),
+      estimatedEndTime: new Date(now + 3 * hourMs),
+      priority: 'medium',
+      assignedMachines: ['M004'],
       status: 'in-progress'
     }
   ];
