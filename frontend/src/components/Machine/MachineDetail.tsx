@@ -29,6 +29,8 @@ export const MachineDetail: React.FC<MachineDetailProps> = ({ machineId, onBack 
 
   useEffect(() => {
     const appendHistoricalData = (foundMachine: Machine) => {
+      if (foundMachine.status === 'idle') return;
+
       setHistoricalData(prev => {
         const newEntry = {
           time: new Date().toLocaleTimeString(),
@@ -76,6 +78,16 @@ export const MachineDetail: React.FC<MachineDetailProps> = ({ machineId, onBack 
       </div>
     );
   }
+
+  const isChartPaused = machine.status === 'idle';
+  const renderPausedChart = () => (
+    <div className="flex h-[300px] items-center justify-center rounded-lg border border-dashed border-gray-700 bg-gray-900/40 text-center">
+      <div>
+        <p className="text-base font-medium text-gray-300">Machine stopped</p>
+        <p className="mt-1 text-sm text-gray-500">Live chart paused until the machine starts again</p>
+      </div>
+    </div>
+  );
 
   const getMachineTypeIcon = (type: string) => {
     switch (type) {
@@ -163,43 +175,47 @@ export const MachineDetail: React.FC<MachineDetailProps> = ({ machineId, onBack 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
           <h3 className="text-xl font-semibold text-white mb-4">Efficiency Trend</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={historicalData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="time" stroke="#9CA3AF" />
-              <YAxis stroke="#9CA3AF" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1F2937',
-                  border: '1px solid #374151',
-                  borderRadius: '8px',
-                  color: '#F9FAFB'
-                }}
-              />
-              <Line type="monotone" dataKey="efficiency" stroke="#10B981" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+          {isChartPaused ? renderPausedChart() : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={historicalData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="time" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#1F2937',
+                    border: '1px solid #374151',
+                    borderRadius: '8px',
+                    color: '#F9FAFB'
+                  }}
+                />
+                <Line type="monotone" dataKey="efficiency" stroke="#10B981" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
           <h3 className="text-xl font-semibold text-white mb-4">Temperature & Vibration</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={historicalData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="time" stroke="#9CA3AF" />
-              <YAxis stroke="#9CA3AF" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1F2937',
-                  border: '1px solid #374151',
-                  borderRadius: '8px',
-                  color: '#F9FAFB'
-                }}
-              />
-              <Line type="monotone" dataKey="temperature" stroke="#F59E0B" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="vibration" stroke="#EF4444" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+          {isChartPaused ? renderPausedChart() : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={historicalData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="time" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#1F2937',
+                    border: '1px solid #374151',
+                    borderRadius: '8px',
+                    color: '#F9FAFB'
+                  }}
+                />
+                <Line type="monotone" dataKey="temperature" stroke="#F59E0B" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="vibration" stroke="#EF4444" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 
