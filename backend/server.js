@@ -88,6 +88,8 @@ function handleArduinoMessage(message) {
   const { type, machineId } = message;
   
   if (type === 'machine_data') {
+    const maintenanceInfo = getMaintenanceInfo(machineId);
+
     // Store machine data
     const machineInfo = {
       id: machineId,
@@ -101,9 +103,9 @@ function handleArduinoMessage(message) {
       output: message.output,
       location: getMachineLocation(machineId),
       lastUpdated: new Date(),
-      cycleTime: calculateCycleTime(message),
-      lastMaintenance: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
-      nextMaintenance: new Date(Date.now() + Math.random() * 30 * 24 * 60 * 60 * 1000)
+      cycleTime: calculateCycleTime(machineId, message),
+      lastMaintenance: maintenanceInfo.lastMaintenance,
+      nextMaintenance: maintenanceInfo.nextMaintenance
     };
     
     machineData.set(machineId, machineInfo);
@@ -320,6 +322,25 @@ function broadcastAlertsUpdate() {
 }
 
 // Utility functions
+function getMaintenanceInfo(machineId) {
+  const schedules = {
+    M001: { lastDaysAgo: 5, nextDaysFromNow: 25 },
+    M002: { lastDaysAgo: 12, nextDaysFromNow: 18 },
+    M003: { lastDaysAgo: 20, nextDaysFromNow: 10 },
+    M004: { lastDaysAgo: 8, nextDaysFromNow: 22 },
+    M005: { lastDaysAgo: 15, nextDaysFromNow: 15 },
+    M006: { lastDaysAgo: 3, nextDaysFromNow: 27 },
+  };
+
+  const schedule = schedules[machineId] || { lastDaysAgo: 10, nextDaysFromNow: 20 };
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  return {
+    lastMaintenance: new Date(Date.now() - schedule.lastDaysAgo * dayMs),
+    nextMaintenance: new Date(Date.now() + schedule.nextDaysFromNow * dayMs),
+  };
+}
+
 function getMachineName(machineId) {
   const names = {
     'M001': 'CNC Mill Alpha',
@@ -356,26 +377,55 @@ function getMachineLocation(machineId) {
   return locations[machineId] || 'Unknown Location';
 }
 
-function calculateCycleTime(data) {
-  // Simple cycle time calculation based on efficiency
-  return data.efficiency > 80 ? Math.random() * 2 + 2 : Math.random() * 4 + 3;
+function calculateCycleTime(machineId, data) {
+  const baseCycleTimes = {
+    M001: 2.4,
+    M002: 3.1,
+    M003: 1.8,
+    M004: 2.9,
+    M005: 4.2,
+    M006: 2.6,
+  };
+
+  const base = baseCycleTimes[machineId] || 3.0;
+
+  if (data.status === 'idle' || data.status === 'maintenance' || data.status === 'error') {
+    return 0;
+  }
+
+  if (data.efficiency >= 90) return base;
+  if (data.efficiency >= 80) return Number((base + 0.3).toFixed(1));
+  if (data.efficiency >= 70) return Number((base + 0.6).toFixed(1));
+  return Number((base + 1.0).toFixed(1));
 }
 
 function generateMaintenanceTasks() {
-  return [
-    {
-      id: 'MT001',
-      machineId: 'M001',
-      machineName: getMachineName('M001'),
+  const taskDetails = {
+    M001: { estimatedDuration: 4, priority: 'medium', assignedTechnician: 'John Smith' },
+    M002: { estimatedDuration: 3, priority: 'high', assignedTechnician: 'Maria Garcia' },
+    M003: { estimatedDuration: 2, priority: 'low', assignedTechnician: 'Alex Johnson' },
+    M004: { estimatedDuration: 3, priority: 'medium', assignedTechnician: 'Priya Patel' },
+    M005: { estimatedDuration: 5, priority: 'medium', assignedTechnician: 'Chen Wei' },
+    M006: { estimatedDuration: 4, priority: 'high', assignedTechnician: 'Sam Taylor' }
+  };
+
+  return Object.keys(taskDetails).map(machineId => {
+    const details = taskDetails[machineId];
+    const maintenanceInfo = getMaintenanceInfo(machineId);
+
+    return {
+      id: `MT-${machineId}`,
+      machineId: machineId,
+      machineName: getMachineName(machineId),
       type: 'preventive',
-      description: 'Routine maintenance and calibration',
-      scheduledDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      estimatedDuration: 4,
-      priority: 'medium',
+      description: 'Scheduled preventive maintenance and inspection',
+      scheduledDate: maintenanceInfo.nextMaintenance,
+      estimatedDuration: details.estimatedDuration,
+      priority: details.priority,
       status: 'scheduled',
-      assignedTechnician: 'John Smith'
-    }
-  ];
+      assignedTechnician: details.assignedTechnician
+    };
+  });
 }
 
 function generateProductionJobs() {
