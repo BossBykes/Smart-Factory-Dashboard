@@ -86,6 +86,14 @@ dashboardWss.on('connection', (ws, req) => {
 
 function handleArduinoMessage(message) {
   const { type, machineId } = message;
+
+  if (type === 'command_ack') {
+    broadcastToDashboard({
+      type: 'command_ack',
+      data: message
+    });
+    return;
+  }
   
   if (type === 'machine_data') {
     const maintenanceInfo = getMaintenanceInfo(machineId);
@@ -135,47 +143,34 @@ function handleDashboardMessage(message) {
   const { type, command, machineId } = message;
   
   if (type === 'machine_command') {
+    const commandId = message.commandId || `CMD-${Date.now()}-${machineId}`;
+
     // Forward command to specific Arduino
     const arduinoClient = arduinoClients.get(machineId);
     
     if (arduinoClient && arduinoClient.readyState === WebSocket.OPEN) {
       arduinoClient.send(JSON.stringify({
+        commandId: commandId,
         command: command,
         machineId: machineId,
         timestamp: Date.now()
       }));
       
       console.log(` Command sent to ${machineId}: ${command}`);
-      
-      // Log command in alerts for dashboard
-      const now = Date.now();
-      alerts.push({
-        id: `CMD-${now}`,
-        machineId: machineId,
-        machineName: getMachineName(machineId),
-        type: 'performance',
-        message: `Remote command executed: ${command}`,
-        timestamp: new Date(now),
-        severity: 'low',
-        acknowledged: false,
-        ruleKey: 'command_executed',
-        status: 'resolved',
-        createdAt: new Date(now).toISOString(),
-        resolvedAt: new Date(now).toISOString()
-      });
-      
-      // Broadcast updated alerts
-      broadcastAlertsUpdate();
-      
     } else {
       console.log(` Machine ${machineId} not connected`);
       
-      // Send error back to dashboard
       broadcastToDashboard({
-        type: 'command_error',
+        type: 'command_ack',
         data: {
+          commandId: commandId,
           machineId: machineId,
-          message: 'Machine not connected'
+          command: command,
+          accepted: false,
+          applied: false,
+          status: 'not_connected',
+          message: 'Machine not connected',
+          timestamp: new Date().toISOString()
         }
       });
     }

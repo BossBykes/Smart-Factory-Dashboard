@@ -76,6 +76,18 @@ const recordCommand = (machine, command) => {
   machine.lastCommandAt = Date.now();
 };
 
+const createCommandAck = ({ commandId, machineId, command, accepted, applied, status, message }) => ({
+  type: 'command_ack',
+  commandId,
+  machineId,
+  command,
+  accepted,
+  applied,
+  status,
+  message,
+  timestamp: new Date().toISOString(),
+});
+
 const triggerFault = (machine) => {
   const faultCode = FAULT_CODES[randInt(0, FAULT_CODES.length - 1)];
 
@@ -147,82 +159,133 @@ const updateTelemetry = (machine) => {
 };
 
 const applyCommand = (message) => {
-  if (!message || typeof message !== 'object') return;
+  const commandId = message && message.commandId ? message.commandId : `CMD-${Date.now()}-${message?.machineId || 'unknown'}`;
+  const machineId = message?.machineId;
+  const command = message?.command;
 
-  const { command, machineId } = message;
+  if (!message || typeof message !== 'object') {
+    return createCommandAck({
+      commandId,
+      machineId,
+      command,
+      accepted: false,
+      applied: false,
+      status: 'rejected',
+      message: 'Invalid command message',
+    });
+  }
+
   const machine = machines.find((item) => item.machineId === machineId);
 
-  if (!machine || typeof command !== 'string') return;
+  if (!machine) {
+    return createCommandAck({
+      commandId,
+      machineId,
+      command,
+      accepted: false,
+      applied: false,
+      status: 'rejected',
+      message: `Unknown machine: ${machineId}`,
+    });
+  }
+
+  if (typeof command !== 'string') {
+    return createCommandAck({
+      commandId,
+      machineId,
+      command,
+      accepted: false,
+      applied: false,
+      status: 'rejected',
+      message: 'Invalid command',
+    });
+  }
 
   console.log(`Simulator command received: ${command} for ${machineId}`);
   recordCommand(machine, command);
 
+  const rejectWithMessage = (responseMessage) => {
+    rejectCommand(machine, command);
+    return createCommandAck({
+      commandId,
+      machineId,
+      command,
+      accepted: false,
+      applied: false,
+      status: 'rejected',
+      message: responseMessage,
+    });
+  };
+
+  const acceptWithMessage = (responseMessage) => createCommandAck({
+    commandId,
+    machineId,
+    command,
+    accepted: true,
+    applied: true,
+    status: 'applied',
+    message: responseMessage,
+  });
+
   switch (command) {
     case 'start':
       if (machine.status !== 'idle') {
-        rejectCommand(machine, command);
-        return;
+        return rejectWithMessage(`Cannot start machine while status is ${machine.status}`);
       }
 
       machine.manualStop = false;
       transitionMachine(machine, 'running', command);
-      break;
+      return acceptWithMessage('Start command applied');
 
     case 'stop':
       if (machine.status !== 'running') {
-        rejectCommand(machine, command);
-        return;
+        return rejectWithMessage(`Cannot stop machine while status is ${machine.status}`);
       }
 
       machine.manualStop = true;
       transitionMachine(machine, 'idle', command);
-      break;
+      return acceptWithMessage('Stop command applied');
 
     case 'emergency_stop':
       if (!['running', 'idle', 'maintenance'].includes(machine.status)) {
-        rejectCommand(machine, command);
-        return;
+        return rejectWithMessage(`Cannot emergency stop machine while status is ${machine.status}`);
       }
 
       machine.faultLatched = true;
       machine.faultCode = 'EMERGENCY_STOP';
       machine.emergencyStopActive = true;
       transitionMachine(machine, 'error', command);
-      break;
+      return acceptWithMessage('Emergency stop command applied');
 
     case 'reset_emergency':
       if (machine.status !== 'error') {
-        rejectCommand(machine, command);
-        return;
+        return rejectWithMessage(`Cannot reset emergency while status is ${machine.status}`);
       }
 
       machine.faultLatched = false;
       machine.faultCode = null;
       machine.emergencyStopActive = false;
       transitionMachine(machine, 'idle', command);
-      break;
+      return acceptWithMessage('Reset emergency command applied');
 
     case 'maintenance_mode':
       if (machine.status !== 'idle') {
-        rejectCommand(machine, command);
-        return;
+        return rejectWithMessage(`Cannot enter maintenance mode while status is ${machine.status}`);
       }
 
       transitionMachine(machine, 'maintenance', command);
-      break;
+      return acceptWithMessage('Maintenance mode command applied');
 
     case 'exit_maintenance':
       if (machine.status !== 'maintenance') {
-        rejectCommand(machine, command);
-        return;
+        return rejectWithMessage(`Cannot exit maintenance mode while status is ${machine.status}`);
       }
 
       transitionMachine(machine, 'idle', command);
-      break;
+      return acceptWithMessage('Exit maintenance command applied');
 
     default:
-      rejectCommand(machine, command);
-      break;
+      return rejectWithMessage(`Unknown command: ${command}`);
   }
 };
 
@@ -256,7 +319,8 @@ ws.on('open', () => {
 ws.on('message', (data) => {
   try {
     const message = JSON.parse(data.toString());
-    applyCommand(message);
+    const ack = applyCommand(message);
+    ws.send(JSON.stringify(ack));
   } catch (error) {
     console.error('Simulator failed to parse command:', error);
   }

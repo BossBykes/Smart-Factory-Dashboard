@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   PlayIcon, 
   StopIcon, 
@@ -9,9 +9,15 @@ import {
   SignalIcon,
   SignalSlashIcon
 } from '@heroicons/react/24/outline';
-import { factoryService } from '../../services/factoryService';
+import { factoryService, type CommandAck } from '../../services/factoryService';
 import { Machine } from '../../types/factory';
 import { cn } from '../../utils/helpers';
+
+interface PendingCommand {
+  commandId: string;
+  command: string;
+  name: string;
+}
 
 interface MachineControlPanelProps {
   machine: Machine;
@@ -24,8 +30,10 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected');
-  const [lastCommand, setLastCommand] = useState<string | null>(null);
+  const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
+  const pendingCommandRef = useRef<PendingCommand | null>(null);
   const [commandHistory, setCommandHistory] = useState<Array<{command: string, timestamp: Date, success: boolean}>>([]);
+  const [commandStatus, setCommandStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
   useEffect(() => {
     // Listen for connection status updates
@@ -33,27 +41,30 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
       setConnectionStatus(data.status);
     };
 
-    const handleCommandError = (data: { machineId: string; message: string }) => {
-      if (data.machineId === machine.id) {
-        setIsLoading(false);
-        addToCommandHistory(lastCommand || 'unknown', false);
-        alert(`Command failed: ${data.message}`);
-      }
-    };
-
     const handleMachineUpdate = (updatedMachine: Machine) => {
       if (updatedMachine.id === machine.id) {
-        setIsLoading(false);
-        if (lastCommand) {
-          addToCommandHistory(lastCommand, true);
-          setLastCommand(null);
-        }
         onUpdate?.(updatedMachine);
       }
     };
 
+    const handleCommandAck = (ack: CommandAck) => {
+      if (ack.machineId !== machine.id) return;
+
+      const pending = pendingCommandRef.current;
+      if (!pending || pending.commandId !== ack.commandId) return;
+
+      setIsLoading(false);
+      addToCommandHistory(pending.name, ack.applied);
+      setCommandStatus({
+        type: ack.applied ? 'success' : 'error',
+        message: ack.message || (ack.applied ? `${pending.name} applied` : `${pending.name} failed`)
+      });
+      pendingCommandRef.current = null;
+      setPendingCommand(null);
+    };
+
     factoryService.addEventListener('connection', handleConnectionUpdate);
-    factoryService.addEventListener('command_error', handleCommandError);
+    factoryService.addEventListener('command_ack', handleCommandAck);
     factoryService.addEventListener('machine_update', handleMachineUpdate);
 
     // Check initial connection status
@@ -61,10 +72,10 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
 
     return () => {
       factoryService.removeEventListener('connection', handleConnectionUpdate);
-      factoryService.removeEventListener('command_error', handleCommandError);
+      factoryService.removeEventListener('command_ack', handleCommandAck);
       factoryService.removeEventListener('machine_update', handleMachineUpdate);
     };
-  }, [machine.id, lastCommand, onUpdate]);
+  }, [machine.id, onUpdate]);
 
   const addToCommandHistory = (command: string, success: boolean) => {
     setCommandHistory(prev => [
@@ -73,60 +84,83 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
     ]);
   };
 
-  const executeCommand = async (commandFunction: () => Promise<boolean>, commandName: string) => {
+  const clearPendingCommand = () => {
+    pendingCommandRef.current = null;
+    setPendingCommand(null);
+  };
+
+  const executeCommand = async (
+    commandFunction: (commandId: string) => Promise<boolean>,
+    commandName: string,
+    command: string
+  ) => {
     if (isLoading) return;
+
+    const commandId = `CMD-${Date.now()}-${machine.id}-${command}`;
+    const nextPendingCommand = { commandId, command, name: commandName };
     
     setIsLoading(true);
-    setLastCommand(commandName);
+    setPendingCommand(nextPendingCommand);
+    pendingCommandRef.current = nextPendingCommand;
+    setCommandStatus({ type: 'info', message: `${commandName} sent. Waiting for acknowledgement.` });
     
     try {
-      const success = await commandFunction();
-      if (!success && connectionStatus === 'error') {
+      const sent = await commandFunction(commandId);
+      if (!sent) {
         addToCommandHistory(commandName, false);
         setIsLoading(false);
+        clearPendingCommand();
+        setCommandStatus({ type: 'error', message: 'Command could not be sent. Machine is offline or disconnected.' });
       }
     } catch (error) {
       console.error('Command execution error:', error);
       addToCommandHistory(commandName, false);
       setIsLoading(false);
+      clearPendingCommand();
+      setCommandStatus({ type: 'error', message: 'Command could not be sent. Check the machine connection.' });
     }
   };
 
   const handleStart = () => {
     executeCommand(
-      () => factoryService.startMachine(machine.id),
-      'START'
+      (commandId) => factoryService.startMachine(machine.id, commandId),
+      'START',
+      'start'
     );
   };
 
   const handleStop = () => {
     executeCommand(
-      () => factoryService.stopMachine(machine.id),
-      'STOP'
+      (commandId) => factoryService.stopMachine(machine.id, commandId),
+      'STOP',
+      'stop'
     );
   };
 
   const handleEmergencyStop = () => {
     if (window.confirm('Are you sure you want to trigger an emergency stop? This will immediately halt all machine operations.')) {
       executeCommand(
-        () => factoryService.emergencyStop(machine.id),
-        'EMERGENCY STOP'
+        (commandId) => factoryService.emergencyStop(machine.id, commandId),
+        'EMERGENCY STOP',
+        'emergency_stop'
       );
     }
   };
 
   const handleResetEmergency = () => {
     executeCommand(
-      () => factoryService.resetEmergency(machine.id),
-      'RESET EMERGENCY'
+      (commandId) => factoryService.resetEmergency(machine.id, commandId),
+      'RESET EMERGENCY',
+      'reset_emergency'
     );
   };
 
   const handleMaintenanceMode = () => {
     if (window.confirm('Set machine to maintenance mode? This will stop production and mark the machine as under maintenance.')) {
       executeCommand(
-        () => factoryService.setMaintenanceMode(machine.id),
-        'MAINTENANCE MODE'
+        (commandId) => factoryService.setMaintenanceMode(machine.id, commandId),
+        'MAINTENANCE MODE',
+        'maintenance_mode'
       );
     }
   };
@@ -208,7 +242,7 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
               : "bg-gray-600 text-gray-400 cursor-not-allowed"
           )}
         >
-          {isLoading && lastCommand === 'START' ? (
+          {isLoading && pendingCommand?.name === 'START' ? (
             <ArrowPathIcon className="h-5 w-5 animate-spin" />
           ) : (
             <PlayIcon className="h-5 w-5" />
@@ -227,7 +261,7 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
               : "bg-gray-600 text-gray-400 cursor-not-allowed"
           )}
         >
-          {isLoading && lastCommand === 'STOP' ? (
+          {isLoading && pendingCommand?.name === 'STOP' ? (
             <ArrowPathIcon className="h-5 w-5 animate-spin" />
           ) : (
             <StopIcon className="h-5 w-5" />
@@ -246,7 +280,7 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
               : "bg-gray-600 text-gray-400 cursor-not-allowed"
           )}
         >
-          {isLoading && lastCommand === 'EMERGENCY STOP' ? (
+          {isLoading && pendingCommand?.name === 'EMERGENCY STOP' ? (
             <ArrowPathIcon className="h-5 w-5 animate-spin" />
           ) : (
             <ExclamationTriangleIcon className="h-5 w-5" />
@@ -265,7 +299,7 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
               : "bg-gray-600 text-gray-400 cursor-not-allowed"
           )}
         >
-          {isLoading && lastCommand === 'RESET EMERGENCY' ? (
+          {isLoading && pendingCommand?.name === 'RESET EMERGENCY' ? (
             <ArrowPathIcon className="h-5 w-5 animate-spin" />
           ) : (
             <ArrowPathIcon className="h-5 w-5" />
@@ -285,13 +319,24 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
             : "bg-gray-600 text-gray-400 cursor-not-allowed"
         )}
       >
-        {isLoading && lastCommand === 'MAINTENANCE MODE' ? (
+        {isLoading && pendingCommand?.name === 'MAINTENANCE MODE' ? (
           <ArrowPathIcon className="h-5 w-5 animate-spin" />
         ) : (
           <WrenchScrewdriverIcon className="h-5 w-5" />
         )}
         <span>MAINTENANCE MODE</span>
       </button>
+
+      {commandStatus && (
+        <div className={cn(
+          "mb-4 rounded-lg border p-3 text-sm",
+          commandStatus.type === 'success' && "bg-green-600/20 border-green-600/30 text-green-300",
+          commandStatus.type === 'error' && "bg-red-600/20 border-red-600/30 text-red-300",
+          commandStatus.type === 'info' && "bg-gray-700/50 border-gray-600 text-gray-300"
+        )}>
+          {commandStatus.message}
+        </div>
+      )}
 
       {/* Command History */}
       {commandHistory.length > 0 && (

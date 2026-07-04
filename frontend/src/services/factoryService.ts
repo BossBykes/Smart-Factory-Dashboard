@@ -17,12 +17,24 @@ interface CommandErrorEvent {
   message: string;
 }
 
+export interface CommandAck {
+  commandId: string;
+  machineId: string;
+  command: string;
+  accepted: boolean;
+  applied: boolean;
+  status: string;
+  message: string;
+  timestamp: string;
+}
+
 interface FactoryEventMap {
   connection: ConnectionEvent;
   data_update: DataUpdateEvent;
   machine_update: Machine;
   alerts_update: Alert[];
   command_error: CommandErrorEvent;
+  command_ack: CommandAck;
 }
 
 type FactoryEventName = keyof FactoryEventMap;
@@ -202,6 +214,20 @@ class FactoryService {
     };
   }
 
+  private normalizeCommandAck(data: unknown): CommandAck {
+    const rawAck = this.toRecord(data);
+    return {
+      commandId: String(rawAck.commandId ?? ''),
+      machineId: String(rawAck.machineId ?? ''),
+      command: String(rawAck.command ?? ''),
+      accepted: Boolean(rawAck.accepted),
+      applied: Boolean(rawAck.applied),
+      status: String(rawAck.status ?? ''),
+      message: String(rawAck.message ?? ''),
+      timestamp: String(rawAck.timestamp ?? new Date().toISOString())
+    };
+  }
+
   private handleWebSocketMessage(message: unknown) {
     const rawMessage = this.toRecord(message);
     const type = String(rawMessage.type ?? '');
@@ -232,6 +258,10 @@ class FactoryService {
         this.notifyListeners('alerts_update', this.alerts);
         break;
       }
+
+      case 'command_ack':
+        this.notifyListeners('command_ack', this.normalizeCommandAck(data));
+        break;
         
       case 'command_error':
         this.notifyListeners('command_error', this.normalizeCommandError(data));
@@ -285,31 +315,33 @@ class FactoryService {
   }
 
   // Machine control methods
-  public async startMachine(machineId: string): Promise<boolean> {
-    return this.sendCommand(machineId, 'start');
+  public async startMachine(machineId: string, commandId?: string): Promise<boolean> {
+    return this.sendCommand(machineId, 'start', commandId);
   }
 
-  public async stopMachine(machineId: string): Promise<boolean> {
-    return this.sendCommand(machineId, 'stop');
+  public async stopMachine(machineId: string, commandId?: string): Promise<boolean> {
+    return this.sendCommand(machineId, 'stop', commandId);
   }
 
-  public async emergencyStop(machineId: string): Promise<boolean> {
-    return this.sendCommand(machineId, 'emergency_stop');
+  public async emergencyStop(machineId: string, commandId?: string): Promise<boolean> {
+    return this.sendCommand(machineId, 'emergency_stop', commandId);
   }
 
-  public async resetEmergency(machineId: string): Promise<boolean> {
-    return this.sendCommand(machineId, 'reset_emergency');
+  public async resetEmergency(machineId: string, commandId?: string): Promise<boolean> {
+    return this.sendCommand(machineId, 'reset_emergency', commandId);
   }
 
-  public async setMaintenanceMode(machineId: string): Promise<boolean> {
-    return this.sendCommand(machineId, 'maintenance_mode');
+  public async setMaintenanceMode(machineId: string, commandId?: string): Promise<boolean> {
+    return this.sendCommand(machineId, 'maintenance_mode', commandId);
   }
 
-  private async sendCommand(machineId: string, command: string): Promise<boolean> {
+  private async sendCommand(machineId: string, command: string, commandId?: string): Promise<boolean> {
     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
       try {
+        const resolvedCommandId = commandId ?? `CMD-${Date.now()}-${machineId}-${command}`;
         const message = {
           type: 'machine_command',
+          commandId: resolvedCommandId,
           machineId: machineId,
           command: command,
           timestamp: Date.now()
