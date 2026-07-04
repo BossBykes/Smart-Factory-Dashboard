@@ -35,7 +35,7 @@ arduinoWss.on('connection', (ws, req) => {
   ws.on('message', (data) => {
     try {
       const message = JSON.parse(data.toString());
-      handleArduinoMessage(message);
+      handleArduinoMessage(message, ws);
     } catch (error) {
       console.error('Error parsing Arduino message:', error);
     }
@@ -47,7 +47,6 @@ arduinoWss.on('connection', (ws, req) => {
     for (const [machineId, client] of arduinoClients.entries()) {
       if (client === ws) {
         arduinoClients.delete(machineId);
-        break;
       }
     }
   });
@@ -84,7 +83,7 @@ dashboardWss.on('connection', (ws, req) => {
   });
 });
 
-function handleArduinoMessage(message) {
+function handleArduinoMessage(message, sourceWs) {
   const { type, machineId } = message;
 
   if (type === 'command_ack') {
@@ -118,12 +117,9 @@ function handleArduinoMessage(message) {
     
     machineData.set(machineId, machineInfo);
     
-    // Register Arduino client
-    const ws = [...arduinoWss.clients].find(client => 
-      client.readyState === WebSocket.OPEN
-    );
-    if (ws) {
-      arduinoClients.set(machineId, ws);
+    // Register the socket that actually sent this machine's data.
+    if (sourceWs && sourceWs.readyState === WebSocket.OPEN) {
+      arduinoClients.set(machineId, sourceWs);
     }
     
     // Check for alerts
@@ -509,7 +505,10 @@ app.post('/api/machine/:id/command', (req, res) => {
   const arduinoClient = arduinoClients.get(machineId);
   
   if (arduinoClient && arduinoClient.readyState === WebSocket.OPEN) {
+    const commandId = `REST-${Date.now()}-${machineId}`;
+
     arduinoClient.send(JSON.stringify({
+      commandId: commandId,
       command: command,
       machineId: machineId,
       timestamp: Date.now()
