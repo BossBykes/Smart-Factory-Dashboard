@@ -65,7 +65,7 @@ function App() {
       case 'production':
         return <ProductionSchedule />;
       case 'maintenance':
-        return <MaintenanceSchedule />;
+        return <MaintenanceSchedule onMachineSelect={handleMachineSelect} />;
       default:
         return <FactoryOverview onMachineSelect={handleMachineSelect} />;
     }
