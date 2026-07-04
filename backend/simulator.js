@@ -133,18 +133,9 @@ const updateTelemetry = (machine) => {
 
     case 'error':
       machine.efficiency = 0;
-      machine.powerConsumption = approach(machine.powerConsumption, randFloat(0.2, 1.2), 0.6, 0.08, 0.1, 2.0);
-
-      if (machine.faultCode === 'OVERHEAT') {
-        machine.temperature = approach(machine.temperature, randFloat(80, 90), 0.45, 0.22, 30, 95);
-        machine.vibration = approach(machine.vibration, randFloat(0.2, 1.0), 0.3, 0.06, 0, 1.5);
-      } else if (machine.faultCode === 'VIBRATION_FAULT') {
-        machine.temperature = approach(machine.temperature, randFloat(35, 50), 0.7, 0.18, 25, 80);
-        machine.vibration = approach(machine.vibration, randFloat(3.8, 5.0), 0.35, 0.1, 0, 5.0);
-      } else {
-        machine.temperature = approach(machine.temperature, randFloat(35, 45), 0.8, 0.18, 25, 80);
-        machine.vibration = approach(machine.vibration, randFloat(0.1, 0.8), 0.3, 0.05, 0, 1.2);
-      }
+      machine.powerConsumption = 0;
+      machine.temperature = 0;
+      machine.vibration = 0;
       break;
 
     default:
