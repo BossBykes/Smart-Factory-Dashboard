@@ -335,6 +335,10 @@ class FactoryService {
     return this.sendCommand(machineId, 'maintenance_mode', commandId);
   }
 
+  public async exitMaintenanceMode(machineId: string, commandId?: string): Promise<boolean> {
+    return this.sendCommand(machineId, 'exit_maintenance', commandId);
+  }
+
   private async sendCommand(machineId: string, command: string, commandId?: string): Promise<boolean> {
     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
       try {
@@ -377,6 +381,9 @@ class FactoryService {
           break;
         case 'maintenance_mode':
           machine.status = 'maintenance';
+          break;
+        case 'exit_maintenance':
+          machine.status = 'idle';
           break;
       }
       this.notifyListeners('machine_update', machine);

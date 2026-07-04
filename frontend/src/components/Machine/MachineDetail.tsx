@@ -29,7 +29,7 @@ export const MachineDetail: React.FC<MachineDetailProps> = ({ machineId, onBack 
 
   useEffect(() => {
     const appendHistoricalData = (foundMachine: Machine) => {
-      if (foundMachine.status === 'idle') return;
+      if (foundMachine.status === 'idle' || foundMachine.status === 'maintenance') return;
 
       setHistoricalData(prev => {
         const newEntry = {
@@ -79,12 +79,16 @@ export const MachineDetail: React.FC<MachineDetailProps> = ({ machineId, onBack 
     );
   }
 
-  const isChartPaused = machine.status === 'idle';
+  const isChartPaused = machine.status === 'idle' || machine.status === 'maintenance';
+  const pausedChartTitle = machine.status === 'maintenance' ? 'Machine under maintenance' : 'Machine stopped';
+  const pausedChartMessage = machine.status === 'maintenance'
+    ? 'Live chart paused until maintenance mode is exited'
+    : 'Live chart paused until the machine starts again';
   const renderPausedChart = () => (
     <div className="flex h-[300px] items-center justify-center rounded-lg border border-dashed border-gray-700 bg-gray-900/40 text-center">
       <div>
-        <p className="text-base font-medium text-gray-300">Machine stopped</p>
-        <p className="mt-1 text-sm text-gray-500">Live chart paused until the machine starts again</p>
+        <p className="text-base font-medium text-gray-300">{pausedChartTitle}</p>
+        <p className="mt-1 text-sm text-gray-500">{pausedChartMessage}</p>
       </div>
     </div>
   );

@@ -126,9 +126,9 @@ const updateTelemetry = (machine) => {
 
     case 'maintenance':
       machine.efficiency = 0;
-      machine.powerConsumption = approach(machine.powerConsumption, randFloat(0.2, 1.0), 0.5, 0.06, 0.1, 1.5);
-      machine.temperature = approach(machine.temperature, randFloat(30, 40), 0.9, 0.18, 25, 70);
-      machine.vibration = approach(machine.vibration, randFloat(0, 0.4), 0.2, 0.03, 0, 0.6);
+      machine.powerConsumption = 0;
+      machine.temperature = 0;
+      machine.vibration = 0;
       break;
 
     case 'error':

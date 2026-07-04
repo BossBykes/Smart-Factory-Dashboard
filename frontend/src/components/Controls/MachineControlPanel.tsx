@@ -19,6 +19,8 @@ interface PendingCommand {
   name: string;
 }
 
+type ConfirmationAction = 'emergency_stop' | 'maintenance_mode' | 'exit_maintenance';
+
 interface MachineControlPanelProps {
   machine: Machine;
   onUpdate?: (machine: Machine) => void;
@@ -34,6 +36,7 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
   const pendingCommandRef = useRef<PendingCommand | null>(null);
   const [commandHistory, setCommandHistory] = useState<Array<{command: string, timestamp: Date, success: boolean}>>([]);
   const [commandStatus, setCommandStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [confirmationAction, setConfirmationAction] = useState<ConfirmationAction | null>(null);
 
   useEffect(() => {
     // Listen for connection status updates
@@ -138,13 +141,7 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
   };
 
   const handleEmergencyStop = () => {
-    if (window.confirm('Are you sure you want to trigger an emergency stop? This will immediately halt all machine operations.')) {
-      executeCommand(
-        (commandId) => factoryService.emergencyStop(machine.id, commandId),
-        'EMERGENCY STOP',
-        'emergency_stop'
-      );
-    }
+    setConfirmationAction('emergency_stop');
   };
 
   const handleResetEmergency = () => {
@@ -156,11 +153,38 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
   };
 
   const handleMaintenanceMode = () => {
-    if (window.confirm('Set machine to maintenance mode? This will stop production and mark the machine as under maintenance.')) {
+    setConfirmationAction('maintenance_mode');
+  };
+
+  const handleExitMaintenanceMode = () => {
+    setConfirmationAction('exit_maintenance');
+  };
+
+  const handleConfirmAction = () => {
+    const action = confirmationAction;
+    setConfirmationAction(null);
+
+    if (action === 'emergency_stop') {
+      executeCommand(
+        (commandId) => factoryService.emergencyStop(machine.id, commandId),
+        'EMERGENCY STOP',
+        'emergency_stop'
+      );
+    }
+
+    if (action === 'maintenance_mode') {
       executeCommand(
         (commandId) => factoryService.setMaintenanceMode(machine.id, commandId),
         'MAINTENANCE MODE',
         'maintenance_mode'
+      );
+    }
+
+    if (action === 'exit_maintenance') {
+      executeCommand(
+        (commandId) => factoryService.exitMaintenanceMode(machine.id, commandId),
+        'EXIT MAINTENANCE',
+        'exit_maintenance'
       );
     }
   };
@@ -190,6 +214,32 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
   const canControl = connectionStatus === 'connected' && !isLoading;
   const isEmergencyState = machine.status === 'error';
   const isMaintenanceState = machine.status === 'maintenance';
+  const canStart = canControl && machine.status === 'idle';
+  const canStop = canControl && machine.status === 'running';
+  const canEmergencyStop = canControl && !isEmergencyState;
+  const canResetEmergency = canControl && isEmergencyState;
+  const canEnterMaintenance = canControl && machine.status === 'idle';
+  const canExitMaintenance = canControl && isMaintenanceState;
+  const confirmationDetails = confirmationAction ? {
+    emergency_stop: {
+      title: 'Emergency Stop',
+      message: 'This will immediately halt all machine operations and latch the machine in an emergency state.',
+      confirmLabel: 'Emergency Stop',
+      tone: 'danger'
+    },
+    maintenance_mode: {
+      title: 'Enter Maintenance Mode',
+      message: 'This will stop production and mark the machine as under maintenance until maintenance mode is exited.',
+      confirmLabel: 'Enter Maintenance',
+      tone: 'maintenance'
+    },
+    exit_maintenance: {
+      title: 'Exit Maintenance Mode',
+      message: 'This will return the machine to idle so it can be started again.',
+      confirmLabel: 'Exit Maintenance',
+      tone: 'maintenance'
+    }
+  }[confirmationAction] : null;
 
   return (
     <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
@@ -234,10 +284,10 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
         {/* Start Button */}
         <button
           onClick={handleStart}
-          disabled={!canControl || isEmergencyState || machine.status === 'running'}
+          disabled={!canStart}
           className={cn(
             "flex items-center justify-center space-x-2 py-3 px-4 rounded-lg font-medium transition-all duration-200",
-            canControl && !isEmergencyState && machine.status !== 'running'
+            canStart
               ? "bg-green-600 hover:bg-green-700 text-white hover:scale-105 shadow-lg"
               : "bg-gray-600 text-gray-400 cursor-not-allowed"
           )}
@@ -253,10 +303,10 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
         {/* Stop Button */}
         <button
           onClick={handleStop}
-          disabled={!canControl || machine.status === 'idle'}
+          disabled={!canStop}
           className={cn(
             "flex items-center justify-center space-x-2 py-3 px-4 rounded-lg font-medium transition-all duration-200",
-            canControl && machine.status !== 'idle'
+            canStop
               ? "bg-yellow-600 hover:bg-yellow-700 text-white hover:scale-105 shadow-lg"
               : "bg-gray-600 text-gray-400 cursor-not-allowed"
           )}
@@ -272,10 +322,10 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
         {/* Emergency Stop Button */}
         <button
           onClick={handleEmergencyStop}
-          disabled={!canControl || isEmergencyState}
+          disabled={!canEmergencyStop}
           className={cn(
             "flex items-center justify-center space-x-2 py-3 px-4 rounded-lg font-medium transition-all duration-200",
-            canControl && !isEmergencyState
+            canEmergencyStop
               ? "bg-red-600 hover:bg-red-700 text-white hover:scale-105 shadow-lg animate-pulse"
               : "bg-gray-600 text-gray-400 cursor-not-allowed"
           )}
@@ -291,10 +341,10 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
         {/* Reset Emergency Button */}
         <button
           onClick={handleResetEmergency}
-          disabled={!canControl || !isEmergencyState}
+          disabled={!canResetEmergency}
           className={cn(
             "flex items-center justify-center space-x-2 py-3 px-4 rounded-lg font-medium transition-all duration-200",
-            canControl && isEmergencyState
+            canResetEmergency
               ? "bg-orange-600 hover:bg-orange-700 text-white hover:scale-105 shadow-lg"
               : "bg-gray-600 text-gray-400 cursor-not-allowed"
           )}
@@ -311,10 +361,10 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
       {/* Maintenance Mode Button */}
       <button
         onClick={handleMaintenanceMode}
-        disabled={!canControl || isMaintenanceState}
+        disabled={!canEnterMaintenance}
         className={cn(
           "w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-lg font-medium transition-all duration-200 mb-4",
-          canControl && !isMaintenanceState
+          canEnterMaintenance
             ? "bg-blue-600 hover:bg-blue-700 text-white hover:scale-105 shadow-lg"
             : "bg-gray-600 text-gray-400 cursor-not-allowed"
         )}
@@ -326,6 +376,26 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
         )}
         <span>MAINTENANCE MODE</span>
       </button>
+
+      {isMaintenanceState && (
+        <button
+          onClick={handleExitMaintenanceMode}
+          disabled={!canExitMaintenance}
+          className={cn(
+            "w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-lg font-medium transition-all duration-200 mb-4",
+            canExitMaintenance
+              ? "bg-cyan-600 hover:bg-cyan-700 text-white hover:scale-105 shadow-lg"
+              : "bg-gray-600 text-gray-400 cursor-not-allowed"
+          )}
+        >
+          {isLoading && pendingCommand?.name === 'EXIT MAINTENANCE' ? (
+            <ArrowPathIcon className="h-5 w-5 animate-spin" />
+          ) : (
+            <ArrowPathIcon className="h-5 w-5" />
+          )}
+          <span>EXIT MAINTENANCE</span>
+        </button>
+      )}
 
       {commandStatus && (
         <div className={cn(
@@ -366,6 +436,57 @@ export const MachineControlPanel: React.FC<MachineControlPanelProps> = ({
             {connectionStatus === 'disconnected' && 'Attempting to connect to machine...'}
             {connectionStatus === 'error' && 'Machine offline. Controls disabled. Check Arduino connection.'}
           </p>
+        </div>
+      )}
+
+      {confirmationDetails && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="machine-confirmation-title"
+        >
+          <div className="w-full max-w-md rounded-lg border border-gray-700 bg-gray-800 p-6 shadow-xl">
+            <div className="flex items-start space-x-3">
+              <div className={cn(
+                "mt-1 rounded-full p-2",
+                confirmationDetails.tone === 'danger' ? "bg-red-600/20 text-red-300" : "bg-blue-600/20 text-blue-300"
+              )}>
+                {confirmationDetails.tone === 'danger' ? (
+                  <ExclamationTriangleIcon className="h-5 w-5" />
+                ) : (
+                  <WrenchScrewdriverIcon className="h-5 w-5" />
+                )}
+              </div>
+              <div>
+                <h4 id="machine-confirmation-title" className="text-lg font-semibold text-white">
+                  {confirmationDetails.title}
+                </h4>
+                <p className="mt-2 text-sm text-gray-300">{confirmationDetails.message}</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setConfirmationAction(null)}
+                className="rounded-lg border border-gray-600 px-4 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAction}
+                className={cn(
+                  "rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors",
+                  confirmationDetails.tone === 'danger'
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-blue-600 hover:bg-blue-700"
+                )}
+              >
+                {confirmationDetails.confirmLabel}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
