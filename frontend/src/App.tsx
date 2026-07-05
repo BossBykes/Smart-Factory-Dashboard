@@ -63,7 +63,7 @@ function App() {
       case 'alerts':
         return <AlertPanel onViewMachine={handleMachineSelect} />;
       case 'production':
-        return <ProductionSchedule />;
+        return <ProductionSchedule onMachineSelect={handleMachineSelect} />;
       case 'maintenance':
         return <MaintenanceSchedule onMachineSelect={handleMachineSelect} />;
       default:
