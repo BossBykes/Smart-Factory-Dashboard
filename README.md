@@ -1,116 +1,171 @@
 # Smart Factory Dashboard
 
-A real-time IoT dashboard for monitoring and controlling factory machines using Arduino sensors and React.
+A real-time smart factory monitoring and control dashboard built with React, TypeScript, Tailwind CSS, Node.js, Express, and WebSockets. It uses a simulator to model factory machines, telemetry, commands, alerts, production jobs, and maintenance scheduling.
+
+## Highlights
+
+- Command Center overview
+- Machines page with search/filter/sort
+- Machine detail page with live telemetry charts and control panel
+- Start/Stop/E-stop/Maintenance/Exit Maintenance controls
+- Simulator command acknowledgements
+- Production board with job health based on machine status
+- Maintenance dashboard with due-date and priority filtering
+- Analytics dashboard
+- Alert center with active/resolved acknowledgement workflow
+- Stable deterministic demo data for production and maintenance
+- WebSocket-based real-time updates
 
 ## Architecture
 
-```
-Arduino Sensors → WiFi → Node.js Server → React Dashboard
+```mermaid
+flowchart LR
+  Simulator["Simulator<br/>backend/simulator.js"] -->|machine_data / command_ack| Backend["Backend WebSocket Server<br/>Node.js + Express + ws"]
+  Backend -->|machine_update / alerts_update| Dashboard["React Dashboard<br/>Vite + TypeScript"]
+  Dashboard -->|machine commands| Backend
+  Backend -->|start / stop / emergency_stop / maintenance_mode / exit_maintenance| Simulator
+  Backend --> REST["REST API<br/>/api/* and /health"]
 ```
 
-## Quick Start
+The simulator publishes machine telemetry to the backend WebSocket server. The backend stores the latest live state, emits updates to connected dashboards, forwards dashboard commands to the simulator, and exposes REST endpoints for machine, alert, command, and health access.
 
-1. **Hardware Setup**: Connect your Arduino components according to the wiring diagram
-2. **WiFi Configuration**: Update `arduino/config.h` with your WiFi credentials
-3. **Start Services**: Run `./scripts/start-all.sh`
-4. **Upload Arduino Code**: Flash the Arduino code to your device
-5. **Open Dashboard**: Visit http://localhost:3000
+## Tech Stack
+
+### Frontend
+
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- Recharts
+- Heroicons
+
+### Backend
+
+- Node.js
+- Express
+- `ws` WebSocket library
+- CORS
 
 ## Project Structure
 
-```
+```text
 smart-factory-dashboard/
-├── frontend/          # React TypeScript dashboard
-├── backend/           # Node.js WebSocket server
-├── arduino/           # Arduino C++ code
-├── scripts/           # Startup scripts
-└── docs/             # Documentation
+├── frontend/   # React TypeScript dashboard
+├── backend/    # Express server, WebSocket bridge, and simulator
+├── docs/       # Project documentation
+└── scripts/    # Development startup scripts
 ```
 
-## Hardware Requirements
+## Getting Started
 
-- Arduino Uno R3
-- ESP8266 WiFi Module
-- DS18B20 Temperature Sensor
-- SW-420 Vibration Sensor
-- ACS712 Current Sensor (30A)
-- WS2812B RGB LED Strip
-- NEMA 17 Stepper Motor + Driver
-- 16x2 LCD Display
-- Push buttons (Emergency stop, Start/Stop)
-- 12V 5A Power supply
+### Prerequisites
 
-## API Endpoints
+- Node.js
+- npm
+- Git
 
-- `GET /api/machines` - Get all machines
-- `GET /api/alerts` - Get recent alerts
-- `POST /api/machine/:id/command` - Send command to machine
-- `GET /health` - Server health check
+### Install
 
-## WebSocket Events
+```bash
+cd backend
+npm install
 
-### From Arduino to Server:
-- `machine_data` - Real-time sensor data
+cd ../frontend
+npm install
+```
 
-### From Dashboard to Arduino:
-- `start` - Start machine
-- `stop` - Stop machine
-- `emergency_stop` - Emergency shutdown
-- `maintenance_mode` - Set maintenance mode
+### Run
 
-## Development
+Start the backend, simulator, and frontend in three separate terminals.
 
-### Backend Development
+Terminal 1: backend
+
 ```bash
 cd backend
 npm run dev
 ```
 
-### Frontend Development
+Terminal 2: simulator
+
 ```bash
-cd frontend
-npm start
+cd backend
+npm run sim
 ```
 
-### Arduino Development
-1. Open Arduino IDE
-2. Load `arduino/smart_factory_controller.ino`
-3. Update `config.h` with your settings
-4. Upload to your Arduino
+Terminal 3: frontend
 
-## Features
+```bash
+cd frontend
+npm run dev
+```
 
-- Real-time machine monitoring
-- Remote machine control
-- Alert system with severity levels
-- Production analytics with charts
-- Maintenance scheduling
-- Emergency stop functionality
-- LED status indicators
-- LCD local display
+Open:
 
-## Troubleshooting
+```text
+http://localhost:5173
+```
 
-### Arduino not connecting?
-1. Check WiFi credentials in `config.h`
-2. Verify server IP address
-3. Ensure port 3001 is not blocked
+## Available Scripts
 
-### Dashboard not updating?
-1. Check WebSocket connection status
-2. Verify backend server is running
-3. Check browser console for errors
+### Backend
 
-### Sensors not reading?
-1. Verify wiring connections
-2. Check power supply
-3. Test individual sensors
+- `npm run dev` - start the backend with `nodemon`
+- `npm run sim` - start the machine simulator
 
-## Next Steps
+### Frontend
 
-- Add database persistence
-- Implement user authentication
-- Add mobile app support
-- Include predictive maintenance AI
-- Add email/SMS notifications
+- `npm run dev` - start the Vite development server
+- `npm run lint` - run ESLint
+- `npm run build` - build the production frontend bundle
 
+## Demo Flow
+
+1. Open Overview.
+2. Open Machines.
+3. Select a machine.
+4. Stop the machine and observe zeroed activity and paused charts.
+5. Start the machine.
+6. Enter Maintenance Mode and Exit Maintenance.
+7. Trigger Emergency Stop and Reset.
+8. Visit the Production, Maintenance, Analytics, and Alerts pages.
+
+## Supported Commands
+
+- `start`
+- `stop`
+- `emergency_stop`
+- `reset_emergency`
+- `maintenance_mode`
+- `exit_maintenance`
+
+## API and WebSocket Overview
+
+### REST
+
+- `GET /api/machines`
+- `GET /api/alerts`
+- `POST /api/machine/:id/command`
+- `GET /health`
+
+### WebSocket
+
+- Simulator connects to `ws://localhost:3001`
+- Dashboard connects to `/dashboard`
+- `machine_data`
+- `machine_update`
+- `command_ack`
+- `alerts_update`
+
+## Simulation Notes
+
+Machine telemetry is simulated for demo and development. Running machines generate live telemetry for output, efficiency, temperature, vibration, and power consumption. Idle, maintenance, and emergency states intentionally show zero activity for clear demo behavior. Production and maintenance data are deterministic and stable so demos are repeatable.
+
+## Future Improvements
+
+- Database persistence
+- Authentication and roles
+- Real hardware adapter
+- Historical analytics storage
+- Notifications
+- Deployment and Dockerization
